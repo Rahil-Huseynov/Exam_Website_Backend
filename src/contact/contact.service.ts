@@ -3,7 +3,7 @@ import * as nodemailer from 'nodemailer';
 import { ConfigService } from '@nestjs/config';
 import { ContactDto } from './dto/contact.dto';
 
-const PRIMARY_COLOR = '#0f6fff'; // slightly more vivid blue
+const PRIMARY_COLOR = '#0f6fff'; 
 const SECONDARY_COLOR = '#f6f8fb';
 const TEXT_COLOR = '#111827';
 const MUTED_COLOR = '#6b7280';
@@ -42,7 +42,6 @@ export class ContactService {
       .replace(/'/g, '&#039;');
   }
 
-  // Modernized base template: larger fonts, better spacing, subtle shadow
   private getBaseTemplate(content: string, title: string) {
     return `
       <!DOCTYPE html>
