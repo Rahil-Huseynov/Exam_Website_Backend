@@ -270,7 +270,7 @@ export class ContactService {
   }
 
   async sendContactEmail(payload: ContactDto) {
-    const siteOwnerRaw = this.config.get<string>('TO_EMAIL') || 'huseynov.rahil.05@gmail.com';
+    const siteOwnerRaw = this.config.get<string>('TO_EMAIL') || '';
     const siteOwnerList = siteOwnerRaw
       .split(',')
       .map(s => s.trim())
