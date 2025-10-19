@@ -84,9 +84,9 @@ export class UserCarsService {
 
   async getAllUserCars() {
     return this.prisma.userCars.findMany({
-      include: { 
-        images: { orderBy: { order: 'asc' } }, 
-        allCar: { include: { images: { orderBy: { order: 'asc' } } } } 
+      include: {
+        images: { orderBy: { order: 'asc' } },
+        allCar: { include: { images: { orderBy: { order: 'asc' } } } }
       },
     });
   }
@@ -94,10 +94,10 @@ export class UserCarsService {
   async getUserCarById(id: number) {
     const car = await this.prisma.userCars.findUnique({
       where: { id },
-      include: { 
-        images: { orderBy: { order: 'asc' } }, 
-        allCar: { include: { images: { orderBy: { order: 'asc' } } } }, 
-        user: true 
+      include: {
+        images: { orderBy: { order: 'asc' } },
+        allCar: { include: { images: { orderBy: { order: 'asc' } } } },
+        user: true
       },
     });
     if (!car) return null;
@@ -106,10 +106,10 @@ export class UserCarsService {
         this.prisma.userCars.update({
           where: { id },
           data: { viewcount: { increment: 1 } },
-          include: { 
-            images: { orderBy: { order: 'asc' } }, 
-            allCar: { include: { images: { orderBy: { order: 'asc' } } } }, 
-            user: true 
+          include: {
+            images: { orderBy: { order: 'asc' } },
+            allCar: { include: { images: { orderBy: { order: 'asc' } } } },
+            user: true
           },
         }),
         this.prisma.allCarsList.update({
@@ -155,10 +155,10 @@ export class UserCarsService {
       const updatedUserCar = await this.prisma.userCars.update({
         where: { id },
         data: { viewcount: { increment: 1 } },
-        include: { 
-          images: { orderBy: { order: 'asc' } }, 
-          allCar: { include: { images: { orderBy: { order: 'asc' } } } }, 
-          user: true 
+        include: {
+          images: { orderBy: { order: 'asc' } },
+          allCar: { include: { images: { orderBy: { order: 'asc' } } } },
+          user: true
         },
       });
 
@@ -300,22 +300,22 @@ export class UserCarsService {
     }
 
     if (ops.length === 0) {
-      return this.prisma.userCars.findUnique({ 
-        where: { id }, 
-        include: { 
-          images: { orderBy: { order: 'asc' } }, 
-          allCar: { include: { images: { orderBy: { order: 'asc' } } } } 
-        } 
+      return this.prisma.userCars.findUnique({
+        where: { id },
+        include: {
+          images: { orderBy: { order: 'asc' } },
+          allCar: { include: { images: { orderBy: { order: 'asc' } } } }
+        }
       });
     }
 
     await this.prisma.$transaction(ops);
-    return this.prisma.userCars.findUnique({ 
-      where: { id }, 
-      include: { 
-        images: { orderBy: { order: 'asc' } }, 
-        allCar: { include: { images: { orderBy: { order: 'asc' } } } } 
-      } 
+    return this.prisma.userCars.findUnique({
+      where: { id },
+      include: {
+        images: { orderBy: { order: 'asc' } },
+        allCar: { include: { images: { orderBy: { order: 'asc' } } } }
+      }
     });
   }
 
@@ -335,7 +335,7 @@ export class UserCarsService {
       year: car.year,
       price: car.price,
       status: car.status,
-      images: (car.images ?? []).map((i) => ({ id: i.id, url: normalizeUrl(i.url) })),
+      viewcount: car.viewcount,
     }));
   }
 
@@ -472,32 +472,32 @@ export class UserCarsService {
   }
 
   async getAllCars() {
-    return this.prisma.allCarsList.findMany({ 
-      include: { 
-        images: { orderBy: { order: 'asc' } }, 
-        userCar: { include: { images: { orderBy: { order: 'asc' } } } } 
-      } 
+    return this.prisma.allCarsList.findMany({
+      include: {
+        images: { orderBy: { order: 'asc' } },
+        userCar: { include: { images: { orderBy: { order: 'asc' } } } }
+      }
     });
   }
 
   async getAllCarById(id: number) {
-    return this.prisma.allCarsList.findUnique({ 
-      where: { id }, 
-      include: { 
-        images: { orderBy: { order: 'asc' } }, 
-        userCar: { include: { images: { orderBy: { order: 'asc' } } } } 
-      } 
+    return this.prisma.allCarsList.findUnique({
+      where: { id },
+      include: {
+        images: { orderBy: { order: 'asc' } },
+        userCar: { include: { images: { orderBy: { order: 'asc' } } } }
+      }
     });
   }
 
   async updateAllCar(id: number, data: any) {
-    const allCar = await this.prisma.allCarsList.findUnique({ 
-      where: { id }, 
-      include: { images: { orderBy: { order: 'asc' } }, userCar: true } 
+    const allCar = await this.prisma.allCarsList.findUnique({
+      where: { id },
+      include: { images: { orderBy: { order: 'asc' } }, userCar: true }
     });
     if (!allCar) throw new BadRequestException('AllCar not found');
 
-    const allowed = ['brand', 'model', 'year', 'price', 'mileage', 'fuel', 'condition', 'color','SaleType','vinCode', 'location', 'ban', 'engine', 'gearbox', 'description', 'features', 'status', 'userId'];
+    const allowed = ['brand', 'model', 'year', 'price', 'mileage', 'fuel', 'condition', 'color', 'SaleType', 'vinCode', 'location', 'ban', 'engine', 'gearbox', 'description', 'features', 'status', 'userId'];
     const updatePayload: any = {};
     for (const k of allowed) {
       if (Object.prototype.hasOwnProperty.call(data, k)) {
@@ -573,22 +573,22 @@ export class UserCarsService {
     }
 
     if (ops.length === 0) {
-      return this.prisma.allCarsList.findUnique({ 
-        where: { id }, 
-        include: { 
-          images: { orderBy: { order: 'asc' } }, 
-          userCar: { include: { images: { orderBy: { order: 'asc' } } } } 
-        } 
+      return this.prisma.allCarsList.findUnique({
+        where: { id },
+        include: {
+          images: { orderBy: { order: 'asc' } },
+          userCar: { include: { images: { orderBy: { order: 'asc' } } } }
+        }
       });
     }
 
     await this.prisma.$transaction(ops);
-    return this.prisma.allCarsList.findUnique({ 
-      where: { id }, 
-      include: { 
-        images: { orderBy: { order: 'asc' } }, 
-        userCar: { include: { images: { orderBy: { order: 'asc' } } } } 
-      } 
+    return this.prisma.allCarsList.findUnique({
+      where: { id },
+      include: {
+        images: { orderBy: { order: 'asc' } },
+        userCar: { include: { images: { orderBy: { order: 'asc' } } } }
+      }
     });
   }
 
