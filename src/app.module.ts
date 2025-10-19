@@ -19,6 +19,7 @@ import { CustomCacheInterceptor } from './common/interceptors/custom-cache.inter
 import { StatsModule } from './stats/stats.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { ContactModule } from './contact/contact.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   providers: [
@@ -31,7 +32,7 @@ import { ContactModule } from './contact/contact.module';
       useClass: CustomCacheInterceptor,
     },
   ],
-  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, FavoritesModule, StatsModule, ContactModule, MailModule, CarsModule, LogsModule, UserModule, AdminSeederModule, PrismaModule, UserCarsModule, CarImagesModule,
+  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, FavoritesModule, EmailModule, StatsModule, ContactModule, MailModule, CarsModule, LogsModule, UserModule, AdminSeederModule, PrismaModule, UserCarsModule, CarImagesModule,
   ServeStaticModule.forRoot({
     rootPath: join(__dirname, '..', 'uploads'),
     serveRoot: '/uploads',

@@ -111,7 +111,7 @@ export class AuthController {
         return { valid };
     }
 
-
+    @UseGuards(AuthGuard('jwt'), AdminGuard)
     @Delete("users/:id")
     deleteUser(@Param("id", ParseIntPipe) id: number) {
         return this.authService.deleteUser(id);
