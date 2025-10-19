@@ -8,8 +8,6 @@ export class MailerController {
 
     @Post()
     async sendEmail(@Body() body: SendEmailDto) {
-        console.log("📨 BACKEND ALDI:", body);
-
         try {
             if (body.carTitle && body.from && body.message) {
                 await this.mailerService.sendCarInquiry({
@@ -30,7 +28,6 @@ export class MailerController {
                 message: "Email uğurla göndərildi 🚀"
             }
         } catch (error) {
-            console.error("❌ EMAIL ERROR:", error);
             throw new HttpException(
                 {
                     success: false,
