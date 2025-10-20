@@ -83,7 +83,7 @@ export class CarsService {
     if (filters.status && filters.status !== 'all') {
       where.status = filters.status;
     } else {
-      where.status = { not: 'Sold' };
+      where.status = { not: 'sold' };
     }
 
     if (filters.brand && filters.brand !== 'all') where.brand = filters.brand;
@@ -523,4 +523,192 @@ export class CarsService {
 
     return null;
   }
+  async getAllCarsPremiumFirst(
+    page = 1,
+    limit = 20,
+    filters: FilterOptions = {},
+  ) {
+    let pageNumber = Number(page) || 1;
+    let limitNumber = Number(limit) || 20;
+    const maxLimit = 100;
+    if (limitNumber <= 0) limitNumber = 20;
+    if (limitNumber > maxLimit) limitNumber = maxLimit;
+    if (pageNumber <= 0) pageNumber = 1;
+
+    if (filters.status && filters.status !== 'all') {
+      if (filters.status === 'sold') {
+        return {
+          cars: [],
+          totalCount: 0,
+          totalPages: 1,
+          currentPage: pageNumber,
+        };
+      }
+      return this.getAllCarsFromAllList(page, limit, filters);
+    }
+
+    const baseWhere: any = {};
+    baseWhere.status = { not: 'sold' };
+
+    if (filters.brand && filters.brand !== 'all') baseWhere.brand = filters.brand;
+    if (filters.model && filters.model !== 'all') baseWhere.model = filters.model;
+    if (filters.fuel && filters.fuel !== 'all') baseWhere.fuel = filters.fuel;
+    if (filters.location && filters.location !== 'all') baseWhere.location = filters.location;
+    if (filters.ban && filters.ban !== 'all') baseWhere.ban = filters.ban;
+    if (filters.engine && filters.engine !== 'all') baseWhere.engine = filters.engine;
+    if (filters.gearbox && filters.gearbox !== 'all') baseWhere.gearbox = filters.gearbox;
+    if (filters.condition && filters.condition !== 'all') baseWhere.condition = filters.condition;
+    if (filters.color && filters.color !== 'all') baseWhere.color = filters.color;
+    if (filters.SaleType && filters.SaleType !== 'all') baseWhere.SaleType = filters.SaleType;
+    if (filters.vinCode && filters.vinCode !== 'all') baseWhere.vinCode = filters.vinCode;
+    if (typeof filters.year === 'number' && !Number.isNaN(filters.year)) baseWhere.year = filters.year;
+    if (typeof filters.minPrice === 'number' || typeof filters.maxPrice === 'number') {
+      baseWhere.price = {};
+      if (typeof filters.minPrice === 'number') baseWhere.price.gte = filters.minPrice;
+      if (typeof filters.maxPrice === 'number') baseWhere.price.lte = filters.maxPrice;
+    }
+    if (filters.search && String(filters.search).trim() !== '') {
+      const q = String(filters.search).trim();
+      baseWhere.AND = baseWhere.AND ?? [];
+      baseWhere.AND.push({
+        OR: [
+          { brand: { contains: q, mode: 'insensitive' } },
+          { model: { contains: q, mode: 'insensitive' } },
+          { location: { contains: q, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    const mapSortToOrder = (sb?: string): any | null => {
+      if (!sb) return null;
+      switch (sb) {
+        case 'price-low':
+        case 'price_asc':
+          return { price: 'asc' };
+        case 'price-high':
+        case 'price_desc':
+          return { price: 'desc' };
+        case 'year-new':
+        case 'year_desc':
+          return { year: 'desc' };
+        case 'year-old':
+        case 'year_asc':
+          return { year: 'asc' };
+        case 'mileage-low':
+          return { mileage: 'asc' };
+        case 'mileage-high':
+          return { mileage: 'desc' };
+        default:
+          return null;
+      }
+    };
+
+    const secondaryOrder = mapSortToOrder(filters.sortBy);
+    const orderByForFind: any[] = secondaryOrder ? [{ createdAt: 'desc' }, secondaryOrder] : [{ createdAt: 'desc' }];
+
+    const premiumWhere = { ...baseWhere, status: 'premium' };
+    const nonPremiumWhere = { 
+      ...baseWhere, 
+      status: { notIn: ['premium', 'sold'] } 
+    };
+
+    const [premiumCount, nonPremiumCount] = await Promise.all([
+      this.prisma.allCarsList.count({ where: premiumWhere }),
+      this.prisma.allCarsList.count({ where: nonPremiumWhere }),
+    ]);
+
+    const totalCount = (premiumCount ?? 0) + (nonPremiumCount ?? 0);
+    const totalPages = Math.max(1, Math.ceil(totalCount / limitNumber));
+    if (pageNumber > totalPages) pageNumber = totalPages;
+
+    const skip = (pageNumber - 1) * limitNumber;
+
+    let rows: any[] = [];
+
+    if (skip < premiumCount) {
+      const premiumSkip = skip;
+      const premiumTake = Math.min(limitNumber, Math.max(0, premiumCount - premiumSkip));
+      const premiumRows = await this.prisma.allCarsList.findMany({
+        where: premiumWhere,
+        skip: premiumSkip,
+        take: premiumTake,
+        orderBy: orderByForFind,
+        include: { images: true, user: true },
+      });
+      rows = rows.concat(premiumRows);
+
+      if (premiumTake < limitNumber) {
+        const need = limitNumber - premiumTake;
+        const nonRows = await this.prisma.allCarsList.findMany({
+          where: nonPremiumWhere,
+          skip: 0,
+          take: need,
+          orderBy: orderByForFind,
+          include: { images: true, user: true },
+        });
+        rows = rows.concat(nonRows);
+      }
+    } else {
+      const nonSkip = skip - premiumCount;
+      const nonRows = await this.prisma.allCarsList.findMany({
+        where: nonPremiumWhere,
+        skip: nonSkip,
+        take: limitNumber,
+        orderBy: orderByForFind,
+        include: { images: true, user: true },
+      });
+      rows = rows.concat(nonRows);
+    }
+
+    const formatted = rows.map((car: any) => ({
+      id: car.id,
+      brand: car.brand,
+      model: car.model,
+      year: car.year,
+      price: car.price,
+      mileage: car.mileage,
+      fuel: car.fuel,
+      condition: car.condition,
+      color: car.color,
+      SaleType: car.SaleType,
+      vinCode: car.vinCode,
+      viewcount: car.viewcount,
+      location: car.location,
+      ban: car.ban,
+      engine: car.engine,
+      gearbox: car.gearbox,
+      description: car.description,
+      features: car.features ?? [],
+      name: car.name,
+      phone: car.phone,
+      phoneCode: car.phoneCode,
+      email: car.email,
+      status: car.status,
+      createdAt: car.createdAt,
+      user: car.user
+        ? {
+          id: car.user.id,
+          firstName: car.user.firstName,
+          lastName: car.user.lastName,
+          email: car.user.email,
+          phoneNumber: car.user.phoneNumber,
+          phoneCode: car.user.phoneCode,
+        }
+        : null,
+      images:
+        car.images?.map((img: any) => ({
+          id: img.id,
+          url: this.normalizeUrl(String(img.url ?? '')),
+        })) ?? [],
+    }));
+
+    return {
+      cars: formatted,
+      totalCount,
+      totalPages,
+      currentPage: pageNumber,
+    };
+  }
+
+
 }
