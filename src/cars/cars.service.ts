@@ -36,6 +36,50 @@ export class CarsService {
     return base.replace(/\/+$/, '');
   }
 
+  private addDays(date: Date, days: number) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+  }
+
+  async expirePremiums() {
+    const now = new Date();
+
+    const expiredAll = await this.prisma.allCarsList.findMany({
+      where: { status: 'premium', premiumExpiresAt: { lte: now } },
+      include: { userCar: true },
+    });
+
+    for (const car of expiredAll) {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.allCarsList.update({
+          where: { id: car.id },
+          data: { status: 'basic', premiumExpiresAt: null },
+        });
+
+        if (car.userCar) {
+          await tx.userCars.update({
+            where: { id: car.userCar.id },
+            data: { status: 'basic', premiumExpiresAt: null },
+          });
+        }
+      });
+    }
+
+    const expiredUserOnly = await this.prisma.userCars.findMany({
+      where: { status: 'premium', premiumExpiresAt: { lte: now }, allCarsListId: null },
+    });
+
+    for (const userCar of expiredUserOnly) {
+      await this.prisma.userCars.update({
+        where: { id: userCar.id },
+        data: { status: 'basic', premiumExpiresAt: null },
+      });
+    }
+
+    return { expiredAllCount: expiredAll.length, expiredUserOnlyCount: expiredUserOnly.length };
+  }
+
   private normalizeUrl(u: string | null | undefined): string {
     if (!u) return '/placeholder.svg';
     const s = String(u).trim();
@@ -607,9 +651,9 @@ export class CarsService {
     const orderByForFind: any[] = secondaryOrder ? [{ createdAt: 'desc' }, secondaryOrder] : [{ createdAt: 'desc' }];
 
     const premiumWhere = { ...baseWhere, status: 'premium' };
-    const nonPremiumWhere = { 
-      ...baseWhere, 
-      status: { notIn: ['premium', 'sold'] } 
+    const nonPremiumWhere = {
+      ...baseWhere,
+      status: { notIn: ['premium', 'sold'] }
     };
 
     const [premiumCount, nonPremiumCount] = await Promise.all([

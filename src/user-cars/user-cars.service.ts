@@ -13,12 +13,34 @@ export class UserCarsService {
     this.uploadDir = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
   }
 
+  private getPremiumSeconds(): number {
+    const envVal =
+      process.env.PREMIUM_EXPIRES_SECONDS ??
+      process.env.NEXT_PUBLIC_PREMIUM_EXPIRES_SECONDS;
+    const n = Number(envVal);
+    if (!envVal || Number.isNaN(n) || n <= 0) return 86400;
+    return Math.floor(n);
+  }
+
+  private getPremiumExpiresDate(): Date {
+    const secs = this.getPremiumSeconds();
+    return new Date(Date.now() + secs * 1000);
+  }
+
+  private addDays(date: Date, days: number) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+  }
+
   async createUserCar(data: any) {
     const imagesUrls: string[] | undefined = Array.isArray(data.imagesUrls)
       ? data.imagesUrls
       : typeof data.imagesUrls === 'string' && data.imagesUrls.length
         ? [data.imagesUrls]
         : undefined;
+
+    const expiresAt = data.status === 'premium' ? this.getPremiumExpiresDate() : null;
 
     const result = await this.prisma.$transaction(async (tx) => {
       const createdUserCar = await tx.userCars.create({
@@ -41,6 +63,7 @@ export class UserCarsService {
           description: data.description,
           features: data.features ?? [],
           status: data.status,
+          premiumExpiresAt: expiresAt,
           userId: Number(data.userId),
           images: imagesUrls ? { create: imagesUrls.map((u, idx) => ({ url: u, order: idx })) } : undefined,
         },
@@ -67,6 +90,7 @@ export class UserCarsService {
           description: createdUserCar.description,
           features: createdUserCar.features ?? [],
           status: createdUserCar.status,
+          premiumExpiresAt: expiresAt,
           userCar: { connect: { id: createdUserCar.id } },
           userId: createdUserCar.userId,
           images: imagesUrls ? { create: imagesUrls.map((u, idx) => ({ url: u, order: idx })) } : undefined,
@@ -86,7 +110,7 @@ export class UserCarsService {
     return this.prisma.userCars.findMany({
       include: {
         images: { orderBy: { order: 'asc' } },
-        allCar: { include: { images: { orderBy: { order: 'asc' } } } }
+        allCar: { include: { images: { orderBy: { order: 'asc' } } } },
       },
     });
   }
@@ -97,7 +121,7 @@ export class UserCarsService {
       include: {
         images: { orderBy: { order: 'asc' } },
         allCar: { include: { images: { orderBy: { order: 'asc' } } } },
-        user: true
+        user: true,
       },
     });
     if (!car) return null;
@@ -109,7 +133,7 @@ export class UserCarsService {
           include: {
             images: { orderBy: { order: 'asc' } },
             allCar: { include: { images: { orderBy: { order: 'asc' } } } },
-            user: true
+            user: true,
           },
         }),
         this.prisma.allCarsList.update({
@@ -158,7 +182,7 @@ export class UserCarsService {
         include: {
           images: { orderBy: { order: 'asc' } },
           allCar: { include: { images: { orderBy: { order: 'asc' } } } },
-          user: true
+          user: true,
         },
       });
 
@@ -228,6 +252,14 @@ export class UserCarsService {
           }
         }
         if (val !== undefined) updatePayload[key] = val;
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updatePayload, 'status')) {
+      if (updatePayload.status === 'premium') {
+        updatePayload.premiumExpiresAt = this.getPremiumExpiresDate();
+      } else {
+        updatePayload.premiumExpiresAt = null;
       }
     }
 
@@ -304,8 +336,8 @@ export class UserCarsService {
         where: { id },
         include: {
           images: { orderBy: { order: 'asc' } },
-          allCar: { include: { images: { orderBy: { order: 'asc' } } } }
-        }
+          allCar: { include: { images: { orderBy: { order: 'asc' } } } },
+        },
       });
     }
 
@@ -314,8 +346,8 @@ export class UserCarsService {
       where: { id },
       include: {
         images: { orderBy: { order: 'asc' } },
-        allCar: { include: { images: { orderBy: { order: 'asc' } } } }
-      }
+        allCar: { include: { images: { orderBy: { order: 'asc' } } } },
+      },
     });
   }
 
@@ -325,8 +357,6 @@ export class UserCarsService {
       take: 5,
       include: { images: { orderBy: { order: 'asc' } } },
     });
-
-    const normalizeUrl = (u: string | null | undefined) => (!u ? '/placeholder.svg' : String(u).replace(/^\/+/, ''));
 
     return cars.map((car) => ({
       id: car.id,
@@ -384,6 +414,8 @@ export class UserCarsService {
         ? [data.imagesUrls]
         : undefined;
 
+    const expiresAt = data.status === 'premium' ? this.getPremiumExpiresDate() : null;
+
     if (data.userId) {
       return this.prisma.$transaction(async (tx) => {
         const createdAll = await tx.allCarsList.create({
@@ -406,6 +438,7 @@ export class UserCarsService {
             description: data.description,
             features: data.features ?? [],
             status: data.status,
+            premiumExpiresAt: expiresAt,
             userId: Number(data.userId),
             images: imagesUrls ? { create: imagesUrls.map((u, idx) => ({ url: u, order: idx })) } : undefined,
           },
@@ -432,6 +465,7 @@ export class UserCarsService {
             description: createdAll.description,
             features: createdAll.features ?? [],
             status: createdAll.status,
+            premiumExpiresAt: expiresAt,
             userId: createdAll.userId!,
             allCarsListId: createdAll.id,
             images: imagesUrls ? { create: imagesUrls.map((u, idx) => ({ url: u, order: idx })) } : undefined,
@@ -462,6 +496,7 @@ export class UserCarsService {
           description: data.description,
           features: data.features ?? [],
           status: data.status,
+          premiumExpiresAt: expiresAt,
           images: imagesUrls ? { create: imagesUrls.map((u, idx) => ({ url: u, order: idx })) } : undefined,
         },
         include: { images: { orderBy: { order: 'asc' } } },
@@ -475,8 +510,8 @@ export class UserCarsService {
     return this.prisma.allCarsList.findMany({
       include: {
         images: { orderBy: { order: 'asc' } },
-        userCar: { include: { images: { orderBy: { order: 'asc' } } } }
-      }
+        userCar: { include: { images: { orderBy: { order: 'asc' } } } },
+      },
     });
   }
 
@@ -485,15 +520,15 @@ export class UserCarsService {
       where: { id },
       include: {
         images: { orderBy: { order: 'asc' } },
-        userCar: { include: { images: { orderBy: { order: 'asc' } } } }
-      }
+        userCar: { include: { images: { orderBy: { order: 'asc' } } } },
+      },
     });
   }
 
   async updateAllCar(id: number, data: any) {
     const allCar = await this.prisma.allCarsList.findUnique({
       where: { id },
-      include: { images: { orderBy: { order: 'asc' } }, userCar: true }
+      include: { images: { orderBy: { order: 'asc' } }, userCar: true },
     });
     if (!allCar) throw new BadRequestException('AllCar not found');
 
@@ -511,6 +546,14 @@ export class UserCarsService {
           try { val = typeof val === 'string' ? JSON.parse(val) : Array.from(val); } catch { val = Array.isArray(val) ? val : [val]; }
         }
         if (val !== undefined) updatePayload[k] = val;
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updatePayload, 'status')) {
+      if (updatePayload.status === 'premium') {
+        updatePayload.premiumExpiresAt = this.getPremiumExpiresDate();
+      } else {
+        updatePayload.premiumExpiresAt = null;
       }
     }
 
@@ -577,8 +620,8 @@ export class UserCarsService {
         where: { id },
         include: {
           images: { orderBy: { order: 'asc' } },
-          userCar: { include: { images: { orderBy: { order: 'asc' } } } }
-        }
+          userCar: { include: { images: { orderBy: { order: 'asc' } } } },
+        },
       });
     }
 
@@ -587,8 +630,8 @@ export class UserCarsService {
       where: { id },
       include: {
         images: { orderBy: { order: 'asc' } },
-        userCar: { include: { images: { orderBy: { order: 'asc' } } } }
-      }
+        userCar: { include: { images: { orderBy: { order: 'asc' } } } },
+      },
     });
   }
 

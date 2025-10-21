@@ -80,7 +80,8 @@ model UserCars {
   gearbox       String?
   description   String?
   features      String[]
-  status        String?
+  status        String?     @default("basic") 
+  premiumExpiresAt DateTime? 
   SaleType      String?
   vinCode       String?
   images        Carimages[]  @relation("UserCarImages")
@@ -110,7 +111,8 @@ model AllCarsList {
   gearbox   String?
   description String?
   features  String[]
-  status    String?
+  status    String?     @default("basic")
+  premiumExpiresAt DateTime? 
   SaleType      String?
   vinCode       String?
   images    Carimages[] @relation("AllCarImages")
