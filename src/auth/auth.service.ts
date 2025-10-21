@@ -112,6 +112,7 @@ export class AuthService {
         city: car.city,
         gearbox: car.gearbox,
         viewcount: car.viewcount,
+        premiumExpiresAt:car.premiumExpiresAt,
         status: car.status,
         description: car.description,
         features: car.features,

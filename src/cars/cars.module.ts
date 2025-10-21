@@ -8,6 +8,7 @@ import { CarsCronService } from './cars-cron.service';
 @Module({
   imports: [ScheduleModule.forRoot()],
   controllers: [CarsController],
+  exports: [CarsService],
   providers: [CarsService, CarsCronService, PrismaService],
 })
-export class CarsModule {}
+export class CarsModule { }

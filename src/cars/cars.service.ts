@@ -45,39 +45,17 @@ export class CarsService {
   async expirePremiums() {
     const now = new Date();
 
-    const expiredAll = await this.prisma.allCarsList.findMany({
+    const allCarsResult = await this.prisma.allCarsList.updateMany({
       where: { status: 'premium', premiumExpiresAt: { lte: now } },
-      include: { userCar: true },
+      data: { status: 'basic', premiumExpiresAt: null },
     });
 
-    for (const car of expiredAll) {
-      await this.prisma.$transaction(async (tx) => {
-        await tx.allCarsList.update({
-          where: { id: car.id },
-          data: { status: 'basic', premiumExpiresAt: null },
-        });
-
-        if (car.userCar) {
-          await tx.userCars.update({
-            where: { id: car.userCar.id },
-            data: { status: 'basic', premiumExpiresAt: null },
-          });
-        }
-      });
-    }
-
-    const expiredUserOnly = await this.prisma.userCars.findMany({
-      where: { status: 'premium', premiumExpiresAt: { lte: now }, allCarsListId: null },
+    const userCarsResult = await this.prisma.userCars.updateMany({
+      where: { status: 'premium', premiumExpiresAt: { lte: now } },
+      data: { status: 'basic', premiumExpiresAt: null },
     });
 
-    for (const userCar of expiredUserOnly) {
-      await this.prisma.userCars.update({
-        where: { id: userCar.id },
-        data: { status: 'basic', premiumExpiresAt: null },
-      });
-    }
-
-    return { expiredAllCount: expiredAll.length, expiredUserOnlyCount: expiredUserOnly.length };
+    return { expiredAllCount: allCarsResult.count ?? 0, expiredUserCarsCount: userCarsResult.count ?? 0 };
   }
 
   private normalizeUrl(u: string | null | undefined): string {
@@ -351,6 +329,83 @@ export class CarsService {
       currentPage: pageNumber,
     };
   }
+
+
+
+  async updateStatus(adId: number, status: string) {
+    const car = await this.prisma.allCarsList.findUnique({
+      where: { id: adId },
+      include: { userCar: true },
+    });
+
+    if (!car) throw new Error(`allCarsList id=${adId} not found`);
+
+    return this.prisma.$transaction(async (tx) => {
+      const updatedCar = await tx.allCarsList.update({
+        where: { id: adId },
+        data: { status },
+      });
+      if (car.userCar) {
+        await tx.userCars.update({
+          where: { id: car.userCar.id },
+          data: { status },
+        });
+      }
+
+      return updatedCar;
+    });
+  }
+
+  private getPremiumSecondsFromEnv(): number {
+    const envVal =
+      process.env.PREMIUM_EXPIRES_SECONDS ??
+      process.env.NEXT_PUBLIC_PREMIUM_EXPIRES_SECONDS;
+
+    if (!envVal) {
+      throw new Error('PREMIUM_EXPIRES_SECONDS env is not set. No default will be used.');
+    }
+
+    const n = Number(envVal);
+    if (Number.isNaN(n) || n <= 0) {
+      throw new Error('PREMIUM_EXPIRES_SECONDS must be a positive number (in seconds).');
+    }
+
+    return Math.floor(n);
+  }
+
+  private getPremiumExpiresDateFromNow(): Date {
+    const secs = this.getPremiumSecondsFromEnv();
+    return new Date(Date.now() + secs * 1000);
+  }
+
+  async markCarPremium(allCarId: number) {
+    const expiresAt = this.getPremiumExpiresDateFromNow();
+
+    const car = await this.prisma.allCarsList.findUnique({
+      where: { id: allCarId },
+      include: { userCar: true },
+    });
+    if (!car) throw new Error(`allCarsList id=${allCarId} not found`);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.allCarsList.update({
+        where: { id: allCarId },
+        data: { status: 'premium', premiumExpiresAt: expiresAt },
+      });
+
+      if (car.userCar) {
+        await tx.userCars.update({
+          where: { id: car.userCar.id },
+          data: { status: 'premium', premiumExpiresAt: expiresAt },
+        });
+      }
+    });
+
+    return { id: allCarId, premiumExpiresAt: expiresAt };
+  }
+
+
+
 
   async getCarById(id: number) {
     const allCar = await this.prisma.allCarsList.findUnique({
