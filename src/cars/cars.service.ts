@@ -378,14 +378,23 @@ export class CarsService {
     return new Date(Date.now() + secs * 1000);
   }
 
-  async markCarPremium(allCarId: number) {
-    const expiresAt = this.getPremiumExpiresDateFromNow();
 
+
+  async markCarPremium(allCarId: number, days?: number) {
     const car = await this.prisma.allCarsList.findUnique({
       where: { id: allCarId },
       include: { userCar: true },
     });
     if (!car) throw new Error(`allCarsList id=${allCarId} not found`);
+
+    let expiresAt: Date;
+    if (typeof days === 'number' && Number.isFinite(days) && days > 0) {
+      const now = new Date();
+      const base = car.premiumExpiresAt && new Date(car.premiumExpiresAt) > now ? new Date(car.premiumExpiresAt) : now;
+      expiresAt = this.addDays(base, Math.floor(days));
+    } else {
+      expiresAt = this.getPremiumExpiresDateFromNow();
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.allCarsList.update({
