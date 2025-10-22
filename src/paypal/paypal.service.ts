@@ -1,15 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as paypal from '@paypal/checkout-server-sdk';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class PaypalService {
   private client: paypal.core.PayPalHttpClient;
   private readonly logger = new Logger(PaypalService.name);
 
-  constructor() {
-    const clientId = process.env.PAYPAL_CLIENT_ID!;
-    const clientSecret = process.env.PAYPAL_CLIENT_SECRET!;
-    const isLive = process.env.PAYPAL_MODE === 'SANDBOX';
+  constructor(private config: ConfigService) {
+    const clientId = this.config.get<string>('PAYPAL_CLIENT_ID')!;
+    const clientSecret = this.config.get<string>('PAYPAL_CLIENT_SECRET')!;
+    const isLive = this.config.get<string>('PAYPAL_MODE') === 'LIVE';
 
     const environment = isLive
       ? new paypal.core.LiveEnvironment(clientId, clientSecret)
@@ -27,8 +28,8 @@ export class PaypalService {
     };
     if (customId) purchaseUnit.custom_id = String(customId);
 
-    const returnUrl = process.env.PAYPAL_RETURN_URL!;
-    const cancelUrl = process.env.PAYPAL_CANCEL_URL!;
+    const returnUrl = this.config.get<string>('PAYPAL_RETURN_URL')!;
+    const cancelUrl = this.config.get<string>('PAYPAL_CANCEL_URL')!;
 
     request.requestBody({
       intent: 'CAPTURE',

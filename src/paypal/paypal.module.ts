@@ -1,12 +1,11 @@
 import { Module } from '@nestjs/common';
 import { PaypalService } from './paypal.service';
 import { PaypalController } from './paypal.controller';
-import { CarsModule } from 'src/cars/cars.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
-  imports: [CarsModule], 
-  controllers: [PaypalController],
+  imports: [ConfigModule],
   providers: [PaypalService],
-  exports: [PaypalService],
+  controllers: [PaypalController],
 })
 export class PaypalModule {}
