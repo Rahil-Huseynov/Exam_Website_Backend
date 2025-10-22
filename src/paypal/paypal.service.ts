@@ -39,7 +39,7 @@ export class PaypalService {
       intent: 'CAPTURE',
       purchase_units: [purchaseUnit],
       application_context: {
-        brand_name: 'CarSales',
+        brand_name: 'CarifyPL',
         landing_page: 'NO_PREFERENCE',
         return_url: returnUrl,
         cancel_url: cancelUrl,
