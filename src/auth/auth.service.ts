@@ -64,7 +64,7 @@ export class AuthService {
     const admin = await this.prisma.admin.findUnique({ where: { email: dto.email } });
     if (admin) {
       const pwMatches = await argon.verify(admin.hash, dto.password);
-      if (!pwMatches) throw new ForbiddenException('Incorrect password');
+      if (!pwMatches) throw new ForbiddenException('Email or password is incorrect');
       const token = await this.signToken(admin.id, admin.email, true, admin.role ?? 'admin');
       return {
         accessToken: token.access_token,
@@ -79,7 +79,7 @@ export class AuthService {
 
     if (!user) throw new ForbiddenException('User not found');
     const pwMatches = await argon.verify(user.hash, dto.password);
-    if (!pwMatches) throw new ForbiddenException('Incorrect password');
+    if (!pwMatches) throw new ForbiddenException('Email or password is incorrect');
 
     return {
       accessToken: (await this.signToken(user.id, user.email, false, user.role ?? 'client')).access_token,
