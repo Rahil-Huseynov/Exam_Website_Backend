@@ -511,7 +511,7 @@ export class AuthService {
     });
 
     await transporter.sendMail({
-      from: `"EUROCAR" <${this.config.get('SMTP_USER')}>`,
+      from: `"Carify.pl" <${this.config.get('SMTP_USER')}>`,
       to,
       subject: 'Password Reset',
       html: `
