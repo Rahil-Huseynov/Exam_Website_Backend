@@ -42,10 +42,12 @@ model User {
   role                String?
   phoneCode           String?
   phoneNumber         String?
+  isEmailVerified     Boolean              @default(false)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   userCars            UserCars[]           @relation("UserToUserCars")
   passwordResetTokens PasswordResetToken[]
+  emailVerifications  EmailVerification[]
   AllCarsList         AllCarsList[]        @relation("UserToAllCarsList")
   favorites           Favorite[]
   @@map("users")
@@ -80,8 +82,8 @@ model UserCars {
   gearbox       String?
   description   String?
   features      String[]
-  status        String?     @default("basic") 
-  premiumExpiresAt DateTime? 
+  status        String?     @default("basic")
+  premiumExpiresAt DateTime?
   SaleType      String?
   vinCode       String?
   images        Carimages[]  @relation("UserCarImages")
@@ -112,7 +114,7 @@ model AllCarsList {
   description String?
   features  String[]
   status    String?     @default("basic")
-  premiumExpiresAt DateTime? 
+  premiumExpiresAt DateTime?
   SaleType      String?
   vinCode       String?
   images    Carimages[] @relation("AllCarImages")
@@ -143,4 +145,16 @@ model PasswordResetToken {
   user      User     @relation(fields: [userId], references: [id])
   expires   DateTime
   createdAt DateTime @default(now())
+}
+
+model EmailVerification {
+  id        Int      @id @default(autoincrement())
+  code      String
+  expires   DateTime
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("email_verifications")
 }
