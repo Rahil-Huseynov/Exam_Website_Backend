@@ -33,7 +33,15 @@ export class UserCarsService {
     return d;
   }
 
+  private normalizeDescription(input: any): string | null {
+    if (input === undefined || input === null) return null;
+    const s = String(input);
+    return s.replace(/\r\n/g, '\n');
+  }
+
   async createUserCar(data: any) {
+    const normalizedDescription = this.normalizeDescription(data.description);
+
     const imagesUrls: string[] | undefined = Array.isArray(data.imagesUrls)
       ? data.imagesUrls
       : typeof data.imagesUrls === 'string' && data.imagesUrls.length
@@ -41,6 +49,8 @@ export class UserCarsService {
         : undefined;
 
     const expiresAt = data.status === 'premium' ? this.getPremiumExpiresDate() : null;
+
+    this.logger.debug(`createUserCar: normalizedDescription = ${JSON.stringify(normalizedDescription)}`);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const createdUserCar = await tx.userCars.create({
@@ -60,7 +70,7 @@ export class UserCarsService {
           SaleType: data.SaleType,
           vinCode: data.vinCode,
           gearbox: data.gearbox,
-          description: data.description,
+          description: normalizedDescription,
           features: data.features ?? [],
           status: data.status,
           premiumExpiresAt: expiresAt,
@@ -125,6 +135,7 @@ export class UserCarsService {
       },
     });
     if (!car) return null;
+
     if (car.allCar) {
       const [updatedUserCar] = await this.prisma.$transaction([
         this.prisma.userCars.update({
@@ -251,6 +262,12 @@ export class UserCarsService {
             val = Array.isArray(val) ? val : [val];
           }
         }
+
+        if (key === 'description' && val !== undefined && val !== null) {
+          val = this.normalizeDescription(val);
+          this.logger.debug(`updateUserCar: normalized description for id=${id} => ${JSON.stringify(val)}`);
+        }
+
         if (val !== undefined) updatePayload[key] = val;
       }
     }
@@ -408,6 +425,8 @@ export class UserCarsService {
   }
 
   async createAllCar(data: any) {
+    const normalizedDescription = this.normalizeDescription(data.description);
+
     const imagesUrls: string[] | undefined = Array.isArray(data.imagesUrls)
       ? data.imagesUrls
       : typeof data.imagesUrls === 'string' && data.imagesUrls.length
@@ -415,6 +434,8 @@ export class UserCarsService {
         : undefined;
 
     const expiresAt = data.status === 'premium' ? this.getPremiumExpiresDate() : null;
+
+    this.logger.debug(`createAllCar: normalizedDescription = ${JSON.stringify(normalizedDescription)}`);
 
     if (data.userId) {
       return this.prisma.$transaction(async (tx) => {
@@ -435,7 +456,7 @@ export class UserCarsService {
             ban: data.ban,
             engine: data.engine,
             gearbox: data.gearbox,
-            description: data.description,
+            description: normalizedDescription,
             features: data.features ?? [],
             status: data.status,
             premiumExpiresAt: expiresAt,
@@ -493,7 +514,7 @@ export class UserCarsService {
           ban: data.ban,
           engine: data.engine,
           gearbox: data.gearbox,
-          description: data.description,
+          description: normalizedDescription,
           features: data.features ?? [],
           status: data.status,
           premiumExpiresAt: expiresAt,
@@ -545,6 +566,12 @@ export class UserCarsService {
         if (k === 'features' && val && !Array.isArray(val)) {
           try { val = typeof val === 'string' ? JSON.parse(val) : Array.from(val); } catch { val = Array.isArray(val) ? val : [val]; }
         }
+
+        if (k === 'description' && val !== undefined && val !== null) {
+          val = this.normalizeDescription(val);
+          this.logger.debug(`updateAllCar: normalized description for id=${id} => ${JSON.stringify(val)}`);
+        }
+
         if (val !== undefined) updatePayload[k] = val;
       }
     }

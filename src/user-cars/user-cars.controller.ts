@@ -9,6 +9,7 @@ export class UserCarsController {
   @UseGuards(AuthGuard('jwt'))
   @Post()
   async create(@Body() body: any) {
+    console.log('UserCarsController.create body.description:', JSON.stringify(body?.description));
     return this.userCarsService.createUserCar(body);
   }
 
@@ -44,6 +45,7 @@ export class UserCarsController {
   @UseGuards(AuthGuard('jwt'))
   @Post('all')
   async createAll(@Body() body: any) {
+    console.log('UserCarsController.createAll body.description:', JSON.stringify(body?.description));
     return this.userCarsService.createAllCar(body);
   }
 
