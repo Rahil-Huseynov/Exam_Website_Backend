@@ -638,11 +638,14 @@ export class AuthService {
     if (!user) {
       throw new ForbiddenException('User not found');
     }
-
-    await this.prisma.user.delete({
-      where: { id: userId },
-    });
-
+    await this.prisma.$transaction([
+      this.prisma.passwordResetToken.deleteMany({
+        where: { userId },
+      }),
+      this.prisma.user.delete({
+        where: { id: userId },
+      }),
+    ]);
     return { message: 'User deleted successfully' };
   }
 
