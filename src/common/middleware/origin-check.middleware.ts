@@ -4,7 +4,7 @@ import { Request, Response, NextFunction } from 'express';
 @Injectable()
 export class OriginCheckMiddleware implements NestMiddleware {
   private allowedOrigins = [
-    'https://eurocar-rahil.netlify.app',
+    'https://carifypl.netlify.app',
     'http://localhost:3000',
   ];
 
