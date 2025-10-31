@@ -44,16 +44,19 @@ export class TranslationService implements OnModuleInit {
     return `translate:${target}:${mimeType ?? this.defaultMime}:${hash}`;
   }
 
-  async translate(texts: string[], target: string, mimeType?: string): Promise<{ translations: string[]; detectedLanguageCodes: (string | null)[] }> {
-    if (!Array.isArray(texts) || texts.length === 0) return { translations: [], detectedLanguageCodes: [] };
+  async translate(
+    texts: string[],
+    target: string,
+    mimeType?: string,
+  ): Promise<{ translations: string[]; detectedLanguageCodes: (string | null)[] }> {
+    if (!Array.isArray(texts) || texts.length === 0)
+      return { translations: [], detectedLanguageCodes: [] };
 
     if (!this.projectLocation) {
       await this.ensureProjectLocation();
     }
-
     const mt = mimeType ?? this.defaultMime;
     const key = this.makeCacheKey(texts, target, mt);
-
     const cached = await this.cacheManager.get<{ translations: string[]; detectedLanguageCodes: (string | null)[] }>(key);
     if (cached) return cached;
 
@@ -64,18 +67,29 @@ export class TranslationService implements OnModuleInit {
       targetLanguageCode: target,
     };
 
-    try {
-      const [response] = await this.client.translateText(request);
-      const translations = (response.translations || []).map((t) => t.translatedText ?? '');
-      const detectedLanguageCodes = (response.translations || []).map((t) => (t.detectedLanguageCode ?? null));
+    const maxAttempts = 3;
+    let attempt = 0;
 
-      const ttlToPass = this.defaultTtlSeconds;
-      await this.cacheManager.set(key, { translations, detectedLanguageCodes }, ttlToPass);
+    while (attempt < maxAttempts) {
+      try {
+        const [response] = await this.client.translateText(request);
+        const translations = (response.translations || []).map((t) => t.translatedText ?? '');
+        const detectedLanguageCodes = (response.translations || []).map((t) => t.detectedLanguageCode ?? null);
+        await this.cacheManager.set(key, { translations, detectedLanguageCodes }, this.defaultTtlSeconds);
+        return { translations, detectedLanguageCodes };
+      } catch (err: any) {
+        attempt++;
+        const isRetryable = err.code === 14 || err.message.includes('ECONNRESET');
+        console.warn(`[TranslationService] translate attempt ${attempt} failed:`, err.message);
 
-      return { translations, detectedLanguageCodes };
-    } catch (err) {
-      console.error('TranslationService.translate error', err);
-      throw new InternalServerErrorException('Translation failed');
+        if (!isRetryable || attempt >= maxAttempts) {
+          console.error('TranslationService.translate error', err);
+          throw new InternalServerErrorException('Translation failed');
+        }
+
+        await new Promise((res) => setTimeout(res, 1000));
+      }
     }
+    throw new InternalServerErrorException('Translation failed after retries');
   }
 }
