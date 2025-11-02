@@ -73,20 +73,24 @@ export class TranslationService implements OnModuleInit {
     while (attempt < maxAttempts) {
       try {
         const [response] = await this.client.translateText(request);
-        const translations = (response.translations || []).map((t) => t.translatedText ?? '');
-        const detectedLanguageCodes = (response.translations || []).map((t) => t.detectedLanguageCode ?? null);
+        const respTranslations = response.translations || [];
+        const translations = texts.map((orig, i) => {
+          const t = respTranslations[i]?.translatedText;
+          if (t === undefined || t === null) return orig;
+          if (typeof t === 'string' && t.trim() === '') return orig;
+          return t;
+        });
+        const detectedLanguageCodes = texts.map((_, i) => respTranslations[i]?.detectedLanguageCode ?? null);
         await this.cacheManager.set(key, { translations, detectedLanguageCodes }, this.defaultTtlSeconds);
         return { translations, detectedLanguageCodes };
       } catch (err: any) {
         attempt++;
-        const isRetryable = err.code === 14 || err.message.includes('ECONNRESET');
-        console.warn(`[TranslationService] translate attempt ${attempt} failed:`, err.message);
-
+        const isRetryable = err && (err.code === 14 || (err.message && err.message.includes('ECONNRESET')));
+        console.warn(`[TranslationService] translate attempt ${attempt} failed:`, err?.message ?? err);
         if (!isRetryable || attempt >= maxAttempts) {
           console.error('TranslationService.translate error', err);
           throw new InternalServerErrorException('Translation failed');
         }
-
         await new Promise((res) => setTimeout(res, 1000));
       }
     }

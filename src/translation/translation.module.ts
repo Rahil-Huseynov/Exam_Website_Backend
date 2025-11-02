@@ -1,4 +1,3 @@
-// src/translation/translation.module.ts
 import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
 import { TranslationService } from './translation.service';

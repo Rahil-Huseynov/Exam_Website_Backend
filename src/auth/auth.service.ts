@@ -9,6 +9,7 @@ import { randomBytes } from 'crypto';
 import * as nodemailer from 'nodemailer';
 import { Prisma } from 'generated/prisma';
 import * as cron from 'node-cron';
+import { join } from 'path';
 
 @Injectable()
 export class AuthService {
@@ -238,7 +239,7 @@ export class AuthService {
     <div class="container">
       <div class="header">
         <div>
-        <img class="logo" src="https://i.ibb.co/RkLLwNWP/4.png" alt="logo" />
+        <img class="logo" src="cid:carify-logo" alt="logo" />
         </div>
         <h1>Email Verification</h1>
         <p>Secure your account</p>
@@ -266,11 +267,18 @@ export class AuthService {
   </body>
   </html>
 `;
-
+    const logoPath = join(process.cwd(), 'public', 'Logo', 'carifypl.png');
     await transporter.sendMail({
       from: `"Carify.pl" <${this.config.get('SMTP_USER')}>`,
       to,
       subject: 'Your verification code',
+      attachments: [
+        {
+          filename: 'carifypl.png',
+          path: logoPath,
+          cid: 'carify-logo'
+        }
+      ],
       html,
     });
   }
@@ -784,14 +792,81 @@ export class AuthService {
         pass: this.config.get('SMTP_PASS'),
       },
     });
-
+    const logoPath = join(process.cwd(), 'public', 'Logo', 'carifypl.png');
     await transporter.sendMail({
       from: `"Carify.pl" <${this.config.get('SMTP_USER')}>`,
       to,
       subject: 'Password Reset',
+      attachments: [
+        {
+          filename: 'carifypl.png',
+          path: logoPath,
+          cid: 'carify-logo'
+        }
+      ],
       html: `
-        ... (eyni HTML contentiniz burada qalır) ...
-      `,
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
+           <tr>
+            <td style="padding: 48px 40px 32px; text-align: center; background: linear-gradient(360deg, #fafafa 0%, #e5e5e5 100%); border-radius: 16px 16px 0 0;">
+ <div style="padding: 40px 30px; text-align: center;">
+        <h1 style="margin: 0; color: #000; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;"><img style="width: 130px;" src="cid:carify-logo" alt="4"></h1>
+      </div>
+              <h1 style="margin: 0; color: #000; font-size: 28px; font-weight: 700; line-height: 1.3;">Password Reset</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px;">
+              <p style="margin: 0 0 24px; color: #374151; font-size: 16px; line-height: 1.6;">
+                Hello,
+              </p>
+              <p style="margin: 0 0 32px; color: #374151; font-size: 16px; line-height: 1.6;">
+                We received a request to reset your password. Click the button below to set a new password:
+              </p>
+              <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td align="center" style="padding: 0;">
+                    <a href="${resetUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 16px 48px; border-radius: 12px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
+                      Reset Password
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 0 40px 40px;">
+              <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px 20px; border-radius: 8px;">
+                <p style="margin: 0; color: #92400e; font-size: 14px; font-weight: 600; line-height: 1.6;">
+                  ⚠️ Important: This link is valid for 1 hour only.
+                </p>
+              </div>
+              
+              <p style="margin: 24px 0 0; color: #6b7280; font-size: 14px; line-height: 1.6;">
+                If you didn't request this password reset, please ignore this email. Your password will remain unchanged.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 32px 40px; background-color: #f9fafb; border-radius: 0 0 16px 16px; border-top: 1px solid #e5e7eb;">
+              <p style="margin: 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.6;">
+                This is an automated message, please do not reply.
+              </p>
+              <p style="margin: 12px 0 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.6;">
+  © 2025 All rights reserved.
+                © ${new Date().getFullYear()} Carify.pl | All rights reserved
+                              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+         `,
     });
   }
 

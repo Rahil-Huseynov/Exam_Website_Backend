@@ -6,7 +6,7 @@ import { plainToInstance } from 'class-transformer';
 
 @Controller('translate')
 export class TranslationController {
-  constructor(private readonly translationService: TranslationService) {}
+  constructor(private readonly translationService: TranslationService) { }
 
   @Post()
   async translate(@Body() body: TranslateDto) {
@@ -23,7 +23,9 @@ export class TranslationController {
     const result = await this.translationService.translate(texts, targetCode, mimeType);
     return {
       translations: result.translations,
-      detectedLanguages: result.detectedLanguageCodes, 
+      detectedLanguages: result.detectedLanguageCodes,
+      originals: texts,
+      originalLanguages: result.detectedLanguageCodes,
     };
   }
 }

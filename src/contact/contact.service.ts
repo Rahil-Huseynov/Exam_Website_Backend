@@ -2,8 +2,9 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { ConfigService } from '@nestjs/config';
 import { ContactDto } from './dto/contact.dto';
+import { join } from 'path';
 
-const PRIMARY_COLOR = '#0f6fff'; 
+const PRIMARY_COLOR = '#0f6fff';
 const SECONDARY_COLOR = '#f6f8fb';
 const TEXT_COLOR = '#111827';
 const MUTED_COLOR = '#6b7280';
@@ -191,7 +192,7 @@ export class ContactService {
 
     const content = `
       <div class="header">
-        <img class="logo" src="https://i.ibb.co/RkLLwNWP/4.png" alt="logo" />
+        <img class="logo" src="cid:carify-logo" alt="logo" />
         <h1 class="h1">New Contact Form Submission</h1>
         <div class="sub">A new message was submitted through your website contact form.</div>
       </div>
@@ -241,7 +242,7 @@ export class ContactService {
 
     const content = `
       <div class="header">
-        <img class="logo" src="https://i.ibb.co/RkLLwNWP/4.png" alt="logo" />
+        <img class="logo" src="cid:carify-logo" alt="logo" />
         <h1 class="h1">Thanks for contacting us!</h1>
         <div class="sub">We received your message and will reply as soon as possible.</div>
       </div>
@@ -281,6 +282,7 @@ export class ContactService {
       throw new BadRequestException('No recipient configured for the site owner.');
     }
 
+    const logoPath = join(process.cwd(), 'public', 'Logo', 'carifypl.png');
     const mailFrom =
       this.config.get<string>('SMTP_FROM') ||
       this.config.get<string>('SMTP_USER') ||
@@ -293,12 +295,26 @@ export class ContactService {
       to: siteOwnerList.join(', '),
       subject: `New Contact Message: ${payload.subject}`,
       html: ownerMailHtml,
+      attachments: [
+        {
+          filename: 'carifypl.png',
+          path: logoPath,
+          cid: 'carify-logo'
+        }
+      ],
     };
     const userMail = {
       from: mailFrom,
       to: payload.email,
       subject: `Thank You for Contacting Us — ${payload.subject}`,
       html: userMailHtml,
+      attachments: [
+        {
+          filename: 'carifypl.png',
+          path: logoPath,
+          cid: 'carify-logo'
+        }
+      ],
     };
 
     try {

@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common"
 import { MailerService as NestMailerService } from "@nestjs-modules/mailer"
+import { join } from "path"
 
 @Injectable()
 export class MailerService {
@@ -25,21 +26,40 @@ export class MailerService {
       phone: data.phone,
       carTitle: data.carTitle,
     })
+    const logoPath = join(process.cwd(), 'public', 'Logo', 'carifypl.png');
 
     return await this.nestMailer.sendMail({
       to: data.to,
       subject,
       html,
+      attachments: [
+        {
+          filename: 'carifypl.png',
+          path: logoPath,
+          cid: 'carify-logo'
+        }
+      ],
+
     })
   }
 
   async sendMail(to: string, subject: string, message: string, context?: Record<string, any>) {
     const html = this.generateModernEmailTemplate(subject, message, context)
+    const logoPath = join(process.cwd(), 'public', 'Logo', 'carifypl.png');
 
     return await this.nestMailer.sendMail({
       to,
       subject,
       html,
+      attachments: [
+        {
+          filename: 'carifypl.png',
+          path: logoPath,
+          cid: 'carify-logo'
+        }
+      ],
+
+
     })
   }
 
@@ -66,7 +86,7 @@ export class MailerService {
     <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
       
       <div style="background: linear-gradient(360deg, #fafafa 0%, #e5e5e5 100%); padding: 40px 30px; text-align: center;">
-        <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;"><img style="width: 130px;" src="https://i.ibb.co/RkLLwNWP/4.png" alt="4"></h1>
+        <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;"><img style="width: 130px;" src="cid:carify-logo" alt="4"></h1>
       </div>
 
       <div style="padding: 40px 30px; color: #333333; line-height: 1.6;">

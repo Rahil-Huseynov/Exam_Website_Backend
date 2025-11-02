@@ -2,6 +2,7 @@ import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common
 import * as nodemailer from 'nodemailer';
 import { ConfigService } from '@nestjs/config';
 import { SendEmailDto } from './dto/send-email.dto';
+import { join } from 'path';
 
 @Injectable()
 export class EmailService {
@@ -48,7 +49,7 @@ export class EmailService {
                       <table style="max-width: 800px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
                           <tr>
                               <td style="background: linear-gradient(360deg, #fafafa 0%, #e5e5e5 100%); padding: 40px 30px; text-align: center;">
-                                  <img class="logo" src="https://i.ibb.co/RkLLwNWP/4.png" alt="logo" />
+                                  <img class="logo" src="cid:carify-logo" alt="logo" />
                                   <h1 style="margin: 0; font-size: 26px;">You have a new message</h1>
                               </td>
                           </tr>
@@ -56,15 +57,14 @@ export class EmailService {
                               <td style="padding: 40px; color: #333333; font-size: 16px; line-height: 1.7;">
                                   <h2 style="font-size: 22px;">${title}</h2>
                                   <div>${body}</div>
-                                  ${
-                                    button
-                                      ? `<div style="margin-top: 30px; text-align:center;">
+                                  ${button
+        ? `<div style="margin-top: 30px; text-align:center;">
                                              <a href="${button.link}" style="padding: 12px 25px; background:#007bff; color:#fff; text-decoration:none; border-radius:5px; font-weight:bold;">
                                                ${button.text}
                                              </a>
                                          </div>`
-                                      : ''
-                                  }
+        : ''
+      }
                                   <p style="margin-top:30px;">Best regards,<br>Carify.pl Team</p>
                               </td>
                           </tr>
@@ -92,16 +92,21 @@ export class EmailService {
 
       const htmlContent = this.buildEmailTemplate(dto.subject, dto.context, dto.message ?? dto.context.title);
 
-      const textContent = `${dto.context.title}\n\n${dto.context.body.replace(/<[^>]+>/g, '')}\n\n${
-        dto.context.button ? `${dto.context.button.text}: ${dto.context.button.link}` : ''
-      }`;
-
+      const textContent = `${dto.context.title}\n\n${dto.context.body.replace(/<[^>]+>/g, '')}\n\n${dto.context.button ? `${dto.context.button.text}: ${dto.context.button.link}` : ''
+        }`;
+      const logoPath = join(process.cwd(), 'public', 'Logo', 'carifypl.png');
       const mailOptions = {
         to: dto.recipients.join(', '),
         subject: dto.subject,
         text: textContent,
         html: htmlContent,
-        attachments,
+        attachments: [
+          {
+            filename: 'carifypl.png',
+            path: logoPath,
+            cid: 'carify-logo'
+          }
+        ],
       };
 
       const info = await this.transporter.sendMail(mailOptions);
