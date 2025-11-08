@@ -158,3 +158,11 @@ model EmailVerification {
   @@index([userId])
   @@map("email_verifications")
 }
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  endpoint  String   @unique
+  keysJson  String
+  userId    String? 
+  createdAt DateTime @default(now())
+}

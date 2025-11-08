@@ -3,15 +3,23 @@ import { promises as fs } from 'fs';
 import type { Prisma } from 'generated/prisma';
 import * as path from 'path';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { PushService } from 'src/push/push.service';
+import { ensureAbsoluteUrl } from 'src/utils/urls';
 
 @Injectable()
 export class UserCarsService {
   private readonly uploadDir: string;
   private readonly logger = new Logger(UserCarsService.name);
+  private frontendBase: string;
 
-  constructor(private prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pushService: PushService,
+  ) {
     this.uploadDir = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
+    this.frontendBase = process.env.FRONTEND_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
   }
+
 
   private getPremiumSeconds(): number {
     const envVal =
@@ -37,6 +45,11 @@ export class UserCarsService {
     if (input === undefined || input === null) return null;
     const s = String(input);
     return s.replace(/\r\n/g, '\n');
+  }
+
+  private normalizeUrl(url: string | null | undefined): string {
+    if (!url) return '/placeholder.svg';
+    return url.replace(/^\/+/, '');
   }
 
   async createUserCar(data: any) {
@@ -113,8 +126,43 @@ export class UserCarsService {
       return { newUserCar: createdUserCar, newAllCar: createdAllCar };
     });
 
+    try {
+      const carToNotify = result.newAllCar ?? result.newUserCar;
+
+      const firstImageRaw = (carToNotify.images && carToNotify.images[0]) ? carToNotify.images[0].url : null;
+      const firstImageUrl = ensureAbsoluteUrl(firstImageRaw, this.frontendBase) || null;
+
+      const payload = {
+        title: 'New car added 🚗',
+        body: [
+          carToNotify.brand,
+          carToNotify.model,
+          carToNotify.year ? `${carToNotify.year}` : null,
+          carToNotify.price ? `Price: ${carToNotify.price} zł` : null,
+        ].filter(Boolean).join(' — '),
+        url: `${this.frontendBase.replace(/\/+$/, '')}/cars/${carToNotify.id}`,
+        icon: firstImageUrl || `${this.frontendBase.replace(/\/+$/, '')}/placeholder-128.png`,
+        image: firstImageUrl || undefined,
+        images: (carToNotify.images ?? []).map((i: any) => ensureAbsoluteUrl(i.url, this.frontendBase) || ''),
+        meta: {
+          id: carToNotify.id,
+          userId: carToNotify.userId ?? null,
+          status: carToNotify.status ?? null,
+        },
+      };
+
+      this.pushService.sendPushToAll(payload).catch((err: Error) => {
+        this.logger.warn(`Failed to send push after createUserCar: ${err.message}`);
+      });
+
+      this.logger.log(`Push notification triggered for created user car id=${carToNotify.id}`);
+    } catch (err) {
+      this.logger.warn(`Push notification error: ${(err as Error).message}`);
+    }
+
     return result;
   }
+
 
   async getAllUserCars() {
     return this.prisma.userCars.findMany({

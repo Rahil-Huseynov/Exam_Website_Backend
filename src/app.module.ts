@@ -22,6 +22,8 @@ import { ContactModule } from './contact/contact.module';
 import { EmailModule } from './email/email.module';
 import { PaypalModule } from './paypal/paypal.module';
 import { TranslationModule } from './translation/translation.module';
+import { PushModule } from './push/push.module';
+import { PushService } from './push/push.service';
 
 @Module({
   providers: [
@@ -34,7 +36,7 @@ import { TranslationModule } from './translation/translation.module';
       useClass: CustomCacheInterceptor,
     },
   ],
-  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, FavoritesModule, EmailModule, TranslationModule ,PaypalModule, StatsModule, ContactModule, MailModule, CarsModule, LogsModule, UserModule, AdminSeederModule, PrismaModule, UserCarsModule, CarImagesModule,
+  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, PushModule, FavoritesModule, EmailModule, TranslationModule, PaypalModule, StatsModule, ContactModule, MailModule, CarsModule, LogsModule, UserModule, AdminSeederModule, PrismaModule, UserCarsModule, CarImagesModule,
   ServeStaticModule.forRoot({
     rootPath: join(__dirname, '..', 'uploads'),
     serveRoot: '/uploads',
