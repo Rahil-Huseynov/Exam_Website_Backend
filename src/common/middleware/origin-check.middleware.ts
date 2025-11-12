@@ -5,6 +5,7 @@ import { Request, Response, NextFunction } from 'express';
 export class OriginCheckMiddleware implements NestMiddleware {
   private allowedOrigins = [
     'https://carifypl.netlify.app',
+    'https://carvia.pl',
     'http://localhost:3000',
   ];
 
