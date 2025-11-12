@@ -33,11 +33,22 @@ export class CarImagesController {
         },
       }),
       fileFilter: (req, file, cb) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
+        const allowedTypes = [
+          'image/jpeg',  // jpg, jpeg
+          'image/png',   // png
+          'image/gif',   // gif
+          'image/webp',  // webp
+          'image/bmp',   // bmp
+          'image/tiff',  // tiff
+          'image/svg+xml' // svg
+        ];
+
+        if (!allowedTypes.includes(file.mimetype)) {
           return cb(new Error('Only image files are allowed!'), false);
         }
         cb(null, true);
       },
+
     }),
   )
   async uploadImages(

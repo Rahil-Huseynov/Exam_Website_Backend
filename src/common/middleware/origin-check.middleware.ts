@@ -4,8 +4,11 @@ import { Request, Response, NextFunction } from 'express';
 @Injectable()
 export class OriginCheckMiddleware implements NestMiddleware {
   private allowedOrigins = [
-    'https://carifypl.netlify.app',
+    'https://carvia-project.netlify.app',
     'https://carvia.pl',
+    'http://carvia.pl',
+    'https://www.carvia.pl',
+    'http://www.carvia.pl',
     'http://localhost:3000',
   ];
 
