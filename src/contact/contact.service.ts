@@ -192,7 +192,7 @@ export class ContactService {
 
     const content = `
       <div class="header">
-        <img class="logo" src="cid:carify-logo" alt="logo" />
+        <img class="logo" src="cid:carvia-logo" alt="logo" />
         <h1 class="h1">New Contact Form Submission</h1>
         <div class="sub">A new message was submitted through your website contact form.</div>
       </div>
@@ -242,7 +242,7 @@ export class ContactService {
 
     const content = `
       <div class="header">
-        <img class="logo" src="cid:carify-logo" alt="logo" />
+        <img class="logo" src="cid:carvia-logo" alt="logo" />
         <h1 class="h1">Thanks for contacting us!</h1>
         <div class="sub">We received your message and will reply as soon as possible.</div>
       </div>
@@ -259,7 +259,7 @@ export class ContactService {
 
         <p style="margin-top:18px;">If you need to add more information, simply reply to this email or contact us via our website.</p>
 
-        <p style="margin-top:20px; font-weight:600;">Best regards,<br/>Carify.pl Team</p>
+        <p style="margin-top:20px; font-weight:600;">Best regards,<br/>Carvia.pl Team</p>
       </div>
 
       <div class="footer">
@@ -282,7 +282,7 @@ export class ContactService {
       throw new BadRequestException('No recipient configured for the site owner.');
     }
 
-    const logoPath = join(process.cwd(), 'public', 'Logo', 'carifypl.png');
+    const logoPath = join(process.cwd(), 'public', 'Logo', 'carvia.png');
     const mailFrom =
       this.config.get<string>('SMTP_FROM') ||
       this.config.get<string>('SMTP_USER') ||
@@ -297,9 +297,9 @@ export class ContactService {
       html: ownerMailHtml,
       attachments: [
         {
-          filename: 'carifypl.png',
+          filename: 'carvia.png',
           path: logoPath,
-          cid: 'carify-logo'
+          cid: 'carvia-logo'
         }
       ],
     };
@@ -310,9 +310,9 @@ export class ContactService {
       html: userMailHtml,
       attachments: [
         {
-          filename: 'carifypl.png',
+          filename: 'carvia.png',
           path: logoPath,
-          cid: 'carify-logo'
+          cid: 'carvia-logo'
         }
       ],
     };

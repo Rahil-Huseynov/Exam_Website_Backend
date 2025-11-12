@@ -49,7 +49,7 @@ export class EmailService {
                       <table style="max-width: 800px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
                           <tr>
                               <td style="background: linear-gradient(360deg, #fafafa 0%, #e5e5e5 100%); padding: 40px 30px; text-align: center;">
-                                  <img class="logo" src="cid:carify-logo" alt="logo" />
+                                  <img class="logo" src="cid:carvia-logo" alt="logo" />
                                   <h1 style="margin: 0; font-size: 26px;">You have a new message</h1>
                               </td>
                           </tr>
@@ -65,12 +65,12 @@ export class EmailService {
                                          </div>`
         : ''
       }
-                                  <p style="margin-top:30px;">Best regards,<br>Carify.pl Team</p>
+                                  <p style="margin-top:30px;">Best regards,<br>Carvia.pl Team</p>
                               </td>
                           </tr>
                           <tr>
                               <td style="background-color: #f9f9f9; color: #888888; text-align: center; padding: 20px; font-size: 12px;">
-                                  &copy; ${year} Carify.pl | All rights reserved.
+                                  &copy; ${year} Carvia.pl | All rights reserved.
                               </td>
                           </tr>
                       </table>
@@ -94,7 +94,7 @@ export class EmailService {
 
       const textContent = `${dto.context.title}\n\n${dto.context.body.replace(/<[^>]+>/g, '')}\n\n${dto.context.button ? `${dto.context.button.text}: ${dto.context.button.link}` : ''
         }`;
-      const logoPath = join(process.cwd(), 'public', 'Logo', 'carifypl.png');
+      const logoPath = join(process.cwd(), 'public', 'Logo', 'carvia.png');
       const mailOptions = {
         to: dto.recipients.join(', '),
         subject: dto.subject,
@@ -102,9 +102,9 @@ export class EmailService {
         html: htmlContent,
         attachments: [
           {
-            filename: 'carifypl.png',
+            filename: 'carvia.png',
             path: logoPath,
-            cid: 'carify-logo'
+            cid: 'carvia-logo'
           }
         ],
       };

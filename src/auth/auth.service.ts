@@ -239,7 +239,7 @@ export class AuthService {
     <div class="container">
       <div class="header">
         <div>
-        <img class="logo" src="cid:carify-logo" alt="logo" />
+        <img class="logo" src="cid:carvia-logo" alt="logo" />
         </div>
         <h1>Email Verification</h1>
         <p>Secure your account</p>
@@ -256,27 +256,27 @@ export class AuthService {
         <p class="validity">This code is valid for <strong>5 minutes</strong>. Please enter it in your browser window.</p>
         
         <div class="warning">
-          <strong>Didn't request this?</strong> If you didn't sign up for Carify.pl, you can safely ignore this email.
+          <strong>Didn't request this?</strong> If you didn't sign up for Carvia.pl, you can safely ignore this email.
         </div>
       </div>
       
       <div class="footer">
-        <p>© ${new Date().getFullYear()} <strong>Carify.pl</strong> • <a href="#">Privacy Policy</a></p>
+        <p>© ${new Date().getFullYear()} <strong>Carvia.pl</strong> • <a href="#">Privacy Policy</a></p>
       </div>
     </div>
   </body>
   </html>
 `;
-    const logoPath = join(process.cwd(), 'public', 'Logo', 'carifypl.png');
+    const logoPath = join(process.cwd(), 'public', 'Logo', 'carvia.png');
     await transporter.sendMail({
-      from: `"Carify.pl" <${this.config.get('SMTP_USER')}>`,
+      from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
       to,
       subject: 'Your verification code',
       attachments: [
         {
-          filename: 'carifypl.png',
+          filename: 'carvia.png',
           path: logoPath,
-          cid: 'carify-logo'
+          cid: 'carvia-logo'
         }
       ],
       html,
@@ -792,16 +792,16 @@ export class AuthService {
         pass: this.config.get('SMTP_PASS'),
       },
     });
-    const logoPath = join(process.cwd(), 'public', 'Logo', 'carifypl.png');
+    const logoPath = join(process.cwd(), 'public', 'Logo', 'carvia.png');
     await transporter.sendMail({
-      from: `"Carify.pl" <${this.config.get('SMTP_USER')}>`,
+      from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
       to,
       subject: 'Password Reset',
       attachments: [
         {
-          filename: 'carifypl.png',
+          filename: 'carvia.png',
           path: logoPath,
-          cid: 'carify-logo'
+          cid: 'carvia-logo'
         }
       ],
       html: `
@@ -813,7 +813,7 @@ export class AuthService {
            <tr>
             <td style="padding: 48px 40px 32px; text-align: center; background: linear-gradient(360deg, #fafafa 0%, #e5e5e5 100%); border-radius: 16px 16px 0 0;">
  <div style="padding: 40px 30px; text-align: center;">
-        <h1 style="margin: 0; color: #000; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;"><img style="width: 130px;" src="cid:carify-logo" alt="4"></h1>
+        <h1 style="margin: 0; color: #000; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;"><img style="width: 130px;" src="cid:carvia-logo" alt="4"></h1>
       </div>
               <h1 style="margin: 0; color: #000; font-size: 28px; font-weight: 700; line-height: 1.3;">Password Reset</h1>
             </td>
@@ -857,7 +857,7 @@ export class AuthService {
               </p>
               <p style="margin: 12px 0 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.6;">
   © 2025 All rights reserved.
-                © ${new Date().getFullYear()} Carify.pl | All rights reserved
+                © ${new Date().getFullYear()} Carvia.pl | All rights reserved
                               </p>
             </td>
           </tr>
