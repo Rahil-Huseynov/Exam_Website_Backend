@@ -9,7 +9,6 @@ export class UserCarsController {
   @UseGuards(AuthGuard('jwt'))
   @Post()
   async create(@Body() body: any) {
-    console.log('UserCarsController.create body.description:', JSON.stringify(body?.description));
     return this.userCarsService.createUserCar(body);
   }
 
@@ -26,26 +25,36 @@ export class UserCarsController {
   @Get(':id')
   async getById(@Param('id') id: string) {
     const carId = Number(id);
-    if (Number.isNaN(carId)) throw new BadRequestException('Invalid car id');
-    return this.userCarsService.getUserCarById(carId);
+    if (!Number.isNaN(carId)) {
+      return this.userCarsService.getUserCarById(carId);
+    }
+    return this.userCarsService.getUserCarByPublicId(id);
+  }
+
+  @Get('public/:publicId')
+  async getByPublic(@Param('publicId') publicId: string) {
+    return this.userCarsService.getUserCarByPublicId(publicId);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Put(':id')
   async update(@Param('id') id: string, @Body() body: any) {
-    return this.userCarsService.updateUserCar(Number(id), body);
+    const carId = Number(id);
+    if (Number.isNaN(carId)) throw new BadRequestException('Invalid id');
+    return this.userCarsService.updateUserCar(carId, body);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Delete(':id')
   async delete(@Param('id') id: string) {
-    return this.userCarsService.deleteUserCar(Number(id));
+    const carId = Number(id);
+    if (Number.isNaN(carId)) throw new BadRequestException('Invalid id');
+    return this.userCarsService.deleteUserCar(carId);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Post('all')
   async createAll(@Body() body: any) {
-    console.log('UserCarsController.createAll body.description:', JSON.stringify(body?.description));
     return this.userCarsService.createAllCar(body);
   }
 

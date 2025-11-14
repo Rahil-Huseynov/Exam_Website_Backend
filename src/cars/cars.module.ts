@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { CarsService } from './cars.service';
-import { CarsController } from './car.controller';
+import { CarsController } from './cars.controller';
 import { CarsCronService } from './cars-cron.service';
 
 @Module({

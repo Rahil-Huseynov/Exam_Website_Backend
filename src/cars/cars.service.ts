@@ -208,6 +208,7 @@ export class CarsService {
       engine: car.engine,
       gearbox: car.gearbox,
       description: car.description,
+      publicId: car.publicId,
       features: car.features ?? [],
       name: car.name,
       phone: car.phone,
@@ -453,6 +454,7 @@ export class CarsService {
           vinCode: updated.vinCode,
           location: updated.location,
           description: updated.description,
+          publicId: updated.publicId,
           features: updated.features ?? [],
           status: updated.status,
           createdAt: updated.createdAt,
@@ -497,6 +499,7 @@ export class CarsService {
           vinCode: updated.vinCode,
           location: updated.location,
           description: updated.description,
+          publicId: updated.publicId,
           features: updated.features ?? [],
           status: updated.status,
           createdAt: updated.createdAt,
@@ -556,6 +559,7 @@ export class CarsService {
           vinCode: updated.vinCode,
           location: updated.location,
           description: updated.description,
+          publicId: updated.publicId,
           features: updated.features ?? [],
           status: updated.status,
           createdAt: updated.createdAt,
@@ -603,6 +607,7 @@ export class CarsService {
           vinCode: updated.vinCode,
           location: updated.location,
           description: updated.description,
+          publicId: updated.publicId,
           features: updated.features ?? [],
           status: updated.status,
           createdAt: updated.createdAt,
@@ -786,6 +791,7 @@ export class CarsService {
       engine: car.engine,
       gearbox: car.gearbox,
       description: car.description,
+      publicId: car.publicId,
       features: car.features ?? [],
       name: car.name,
       phone: car.phone,
@@ -817,6 +823,4 @@ export class CarsService {
       currentPage: pageNumber,
     };
   }
-
-
-}
+} 

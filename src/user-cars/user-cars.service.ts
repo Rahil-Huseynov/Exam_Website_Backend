@@ -20,7 +20,6 @@ export class UserCarsService {
     this.frontendBase = process.env.FRONTEND_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
   }
 
-
   private getPremiumSeconds(): number {
     const envVal =
       process.env.PREMIUM_EXPIRES_SECONDS ??
@@ -52,6 +51,22 @@ export class UserCarsService {
     return url.replace(/^\/+/, '');
   }
 
+  private generatePublicId(len = 8) {
+    const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    let out = '';
+    for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
+    return out;
+  }
+  private async ensureUniquePublicId(tx: any, maxAttempts = 10) {
+    for (let i = 0; i < maxAttempts; i++) {
+      const candidate = this.generatePublicId(8);
+      const existsInUser = await tx.userCars.findFirst({ where: { publicId: candidate } });
+      const existsInAll = await tx.allCarsList.findFirst({ where: { publicId: candidate } });
+      if (!existsInUser && !existsInAll) return candidate;
+    }
+    throw new Error('Failed to generate unique publicId after several attempts');
+  }
+
   async createUserCar(data: any) {
     const normalizedDescription = this.normalizeDescription(data.description);
 
@@ -66,6 +81,8 @@ export class UserCarsService {
     this.logger.debug(`createUserCar: normalizedDescription = ${JSON.stringify(normalizedDescription)}`);
 
     const result = await this.prisma.$transaction(async (tx) => {
+      const publicId = await this.ensureUniquePublicId(tx);
+
       const createdUserCar = await tx.userCars.create({
         data: {
           brand: data.brand,
@@ -88,6 +105,7 @@ export class UserCarsService {
           status: data.status,
           premiumExpiresAt: expiresAt,
           userId: Number(data.userId),
+          publicId: publicId,
           images: imagesUrls ? { create: imagesUrls.map((u, idx) => ({ url: u, order: idx })) } : undefined,
         },
         include: { images: { orderBy: { order: 'asc' } } },
@@ -116,6 +134,7 @@ export class UserCarsService {
           premiumExpiresAt: expiresAt,
           userCar: { connect: { id: createdUserCar.id } },
           userId: createdUserCar.userId,
+          publicId: publicId,
           images: imagesUrls ? { create: imagesUrls.map((u, idx) => ({ url: u, order: idx })) } : undefined,
         },
         include: { images: { orderBy: { order: 'asc' } } },
@@ -140,7 +159,7 @@ export class UserCarsService {
           carToNotify.year ? `${carToNotify.year}` : null,
           carToNotify.price ? `Price: ${carToNotify.price} zł` : null,
         ].filter(Boolean).join(' — '),
-        url: `${this.frontendBase.replace(/\/+$/, '')}/cars/${carToNotify.id}`,
+        url: `${this.frontendBase.replace(/\/+$/, '')}/cars/${carToNotify.publicId ?? carToNotify.id}`,
         icon: firstImageUrl || `${this.frontendBase.replace(/\/+$/, '')}/placeholder-128.png`,
         image: firstImageUrl || undefined,
         images: (carToNotify.images ?? []).map((i: any) => ensureAbsoluteUrl(i.url, this.frontendBase) || ''),
@@ -162,7 +181,6 @@ export class UserCarsService {
 
     return result;
   }
-
 
   async getAllUserCars() {
     return this.prisma.userCars.findMany({
@@ -279,6 +297,91 @@ export class UserCarsService {
         allCarsListId: updatedUserCar.allCarsListId ?? updatedUserCar.allCar?.id ?? null,
       };
     }
+  }
+  async getUserCarByPublicId(publicId: string) {
+    const car = await this.prisma.userCars.findFirst({
+      where: { publicId },
+      include: {
+        images: { orderBy: { order: 'asc' } },
+        allCar: { include: { images: { orderBy: { order: 'asc' } } } },
+        user: true,
+      },
+    });
+    if (!car) return null;
+
+    const normalizeUrl = (u: string | null | undefined) =>
+      !u ? '/placeholder.svg' : String(u).replace(/^\/+/, '');
+
+    const images = (car.images ?? []).map((i) => ({
+      url: normalizeUrl(i.url),
+    }));
+
+    const allCarRaw = car.allCar ?? null;
+    const allCar = allCarRaw
+      ? {
+        createdAt: allCarRaw.createdAt,
+        brand: allCarRaw.brand,
+        model: allCarRaw.model,
+        year: allCarRaw.year,
+        price: allCarRaw.price,
+        mileage: allCarRaw.mileage,
+        fuel: allCarRaw.fuel,
+        condition: allCarRaw.condition,
+        color: allCarRaw.color,
+        ban: allCarRaw.ban,
+        viewcount: allCarRaw.viewcount,
+        location: allCarRaw.location,
+        engine: allCarRaw.engine,
+        gearbox: allCarRaw.gearbox,
+        description: allCarRaw.description,
+        features: allCarRaw.features,
+        status: allCarRaw.status,
+        premiumExpiresAt: allCarRaw.premiumExpiresAt,
+        SaleType: allCarRaw.SaleType,
+        vinCode: allCarRaw.vinCode,
+        userId: allCarRaw.userId,
+        publicId: allCarRaw.publicId,
+        images: (allCarRaw.images ?? []).map((i) => ({
+          url: normalizeUrl(i.url),
+        })),
+      }
+      : null;
+
+    const result: any = {
+      brand: car.brand,
+      model: car.model,
+      year: car.year,
+      price: car.price,
+      mileage: car.mileage,
+      fuel: car.fuel,
+      condition: car.condition,
+      color: car.color,
+      SaleType: car.SaleType,
+      vinCode: car.vinCode,
+      viewcount: car.viewcount,
+      ban: car.ban,
+      location: car.location,
+      engine: car.engine,
+      gearbox: car.gearbox,
+      description: car.description,
+      features: car.features,
+      status: car.status,
+      createdAt: car.createdAt,
+      updatedAt: car.updatedAt,
+      images,
+      allCar,
+      user: car.user
+        ? {
+          firstName: car.user.firstName,
+          lastName: car.user.lastName,
+          email: car.user.email,
+          phoneCode: car.user.phoneCode,
+          phoneNumber: car.user.phoneNumber,
+        }
+        : null,
+    };
+
+    return result;
   }
 
   async updateUserCar(id: number, data: any) {
@@ -487,6 +590,8 @@ export class UserCarsService {
 
     if (data.userId) {
       return this.prisma.$transaction(async (tx) => {
+        const publicId = await this.ensureUniquePublicId(tx);
+
         const createdAll = await tx.allCarsList.create({
           data: {
             brand: data.brand,
@@ -509,6 +614,7 @@ export class UserCarsService {
             status: data.status,
             premiumExpiresAt: expiresAt,
             userId: Number(data.userId),
+            publicId: publicId,
             images: imagesUrls ? { create: imagesUrls.map((u, idx) => ({ url: u, order: idx })) } : undefined,
           },
           include: { images: { orderBy: { order: 'asc' } } },
@@ -537,6 +643,7 @@ export class UserCarsService {
             premiumExpiresAt: expiresAt,
             userId: createdAll.userId!,
             allCarsListId: createdAll.id,
+            publicId: publicId,
             images: imagesUrls ? { create: imagesUrls.map((u, idx) => ({ url: u, order: idx })) } : undefined,
           },
           include: { images: { orderBy: { order: 'asc' } } },
@@ -566,6 +673,7 @@ export class UserCarsService {
           features: data.features ?? [],
           status: data.status,
           premiumExpiresAt: expiresAt,
+          publicId: this.generatePublicId(8),
           images: imagesUrls ? { create: imagesUrls.map((u, idx) => ({ url: u, order: idx })) } : undefined,
         },
         include: { images: { orderBy: { order: 'asc' } } },

@@ -5,6 +5,49 @@ import { CarsService, FilterOptions } from './cars.service';
 export class CarsController {
   constructor(private readonly carsService: CarsService) {}
 
+  private stripIdsFromCarsPayload(payload: any) {
+    if (!payload) return payload;
+
+    const mappedCars = (payload.cars ?? []).map((car: any) => {
+      const { id: _ignoreId, ...carRest } = car;
+
+      let user = null;
+      if (carRest.user) {
+        const { id: _uId, ...userRest } = carRest.user;
+        user = userRest;
+      }
+
+      const images = (carRest.images ?? []).map((img: any) => {
+        const { id: _imgId, ...imgRest } = img;
+        return imgRest;
+      });
+
+      let allCar = null;
+      if (carRest.allCar) {
+        const { id: _allCarId, images: allCarImages = [], ...allCarRest } = carRest.allCar;
+        allCar = {
+          ...allCarRest,
+          images: (allCarImages ?? []).map((img: any) => {
+            const { id: _aci, ...imgRest } = img;
+            return imgRest;
+          }),
+        };
+      }
+
+      return {
+        ...carRest,
+        user,
+        images,
+        allCar,
+      };
+    });
+
+    return {
+      ...payload,
+      cars: mappedCars,
+    };
+  }
+
   @Get('all')
   async getAllCars(
     @Query('page') page = '1',
@@ -191,7 +234,8 @@ export class CarsController {
       maxPrice: maxPrice ? parseInt(maxPrice, 10) : undefined,
     };
 
-    return this.carsService.getAllCarsPremiumFirst(pageNumber, limitNumber, filters);
+    const payload = await this.carsService.getAllCarsPremiumFirst(pageNumber, limitNumber, filters);
+    return this.stripIdsFromCarsPayload(payload);
   }
 
   @Get('for-sale-premium-first')
@@ -238,7 +282,8 @@ export class CarsController {
       maxPrice: maxPrice ? parseInt(maxPrice, 10) : undefined,
     };
 
-    return this.carsService.getAllCarsPremiumFirst(pageNumber, limitNumber, filters);
+    const payload = await this.carsService.getAllCarsPremiumFirst(pageNumber, limitNumber, filters);
+    return this.stripIdsFromCarsPayload(payload);
   }
 
   @Get('all-premium-first')

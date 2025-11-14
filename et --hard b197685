@@ -1,0 +1,14 @@
+[33m21b419a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m HEAD@{0}: reset: moving to HEAD~1
+[33mf5549ba[m[33m ([m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{1}: reset: moving to HEAD~1
+[33mb197685[m HEAD@{2}: commit: add url logic
+[33mf5549ba[m[33m ([m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{3}: commit: Add new logo and fix mail
+[33m21b419a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m HEAD@{4}: pull: Fast-forward
+[33m5a8ed91[m HEAD@{5}: commit: FIX Deploy
+[33mb4c5166[m[33m ([m[1;31morigin/Production-1-Notification[m[33m, [m[1;32mProduction-1-Notification[m[33m)[m HEAD@{6}: merge Production-1-Notification: Fast-forward
+[33m438ae90[m HEAD@{7}: checkout: moving from Production-1-Notification to master
+[33mb4c5166[m[33m ([m[1;31morigin/Production-1-Notification[m[33m, [m[1;32mProduction-1-Notification[m[33m)[m HEAD@{8}: commit: Add Notification logic
+[33m438ae90[m HEAD@{9}: checkout: moving from master to Production-1-Notification
+[33m438ae90[m HEAD@{10}: commit: Add logo and fix translate logic
+[33mf8e39c4[m HEAD@{11}: commit: Add auto-translate #2
+[33m5eb464a[m HEAD@{12}: commit: Add auto-translate
+[33mc93f262[m HEAD@{13}: clone: from https://github.com/Rahil-Huseynov/Car_Sales_Backend.git

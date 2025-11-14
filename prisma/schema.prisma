@@ -64,65 +64,69 @@ model Favorite {
 }
 
 model UserCars {
-  id            Int         @id @default(autoincrement())
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  brand         String?
-  model         String?
-  year          Int
-  price         Int
-  mileage       Int
-  fuel          String?
-  condition     String?
-  color         String?
-  viewcount     Int @default(0)
-  ban           String?
-  location      String?
-  engine        String?
-  gearbox       String?
-  description   String?
-  features      String[]
-  status        String?     @default("basic")
+  id               Int         @id @default(autoincrement())
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  brand            String?
+  model            String?
+  year             Int
+  price            Int
+  mileage          Int
+  fuel             String?
+  condition        String?
+  color            String?
+  viewcount        Int         @default(0)
+  ban              String?
+  location         String?
+  engine           String?
+  gearbox          String?
+  description      String?
+  features         String[]
+  status           String?     @default("basic")
   premiumExpiresAt DateTime?
-  SaleType      String?
-  vinCode       String?
-  images        Carimages[]  @relation("UserCarImages")
-  userId        Int
-  user          User         @relation("UserToUserCars", fields: [userId], references: [id])
-  allCarsListId Int?         @unique
-  allCar        AllCarsList? @relation("UserCarToAllCar", fields: [allCarsListId], references: [id], onDelete: Cascade)
+  SaleType         String?
+  vinCode          String?
+  images           Carimages[] @relation("UserCarImages")
+  userId           Int
+  user             User        @relation("UserToUserCars", fields: [userId], references: [id])
+  allCarsListId    Int?        @unique
+  allCar           AllCarsList?@relation("UserCarToAllCar", fields: [allCarsListId], references: [id], onDelete: Cascade)
+
+  publicId          String?     @unique
 
   @@map("userJournal")
 }
 
 model AllCarsList {
-  id        Int         @id @default(autoincrement())
-  createdAt DateTime    @default(now())
-  brand     String?
-  model     String?
-  year      Int
-  price     Int
-  mileage   Int
-  fuel      String?
-  condition String?
-  color     String?
-  ban       String?
-  viewcount Int @default(0)
-  location  String?
-  engine    String?
-  gearbox   String?
-  description String?
-  features  String[]
-  status    String?     @default("basic")
+  id             Int         @id @default(autoincrement())
+  createdAt      DateTime    @default(now())
+  brand          String?
+  model          String?
+  year           Int
+  price          Int
+  mileage        Int
+  fuel           String?
+  condition      String?
+  color          String?
+  ban            String?
+  viewcount      Int         @default(0)
+  location       String?
+  engine         String?
+  gearbox        String?
+  description    String?
+  features       String[]
+  status         String?     @default("basic")
   premiumExpiresAt DateTime?
-  SaleType      String?
-  vinCode       String?
-  images    Carimages[] @relation("AllCarImages")
+  SaleType       String?
+  vinCode        String?
+  images         Carimages[] @relation("AllCarImages")
 
-  userCar   UserCars? @relation("UserCarToAllCar")
-  favorites Favorite[]
-  userId   Int?
-  user     User?      @relation("UserToAllCarsList", fields: [userId], references: [id])
+  userCar        UserCars?   @relation("UserCarToAllCar")
+  favorites      Favorite[]
+  userId         Int?
+  user           User?       @relation("UserToAllCarsList", fields: [userId], references: [id])
+
+  publicId       String?     @unique
 
   @@map("allCarsList")
 }
@@ -163,6 +167,6 @@ model PushSubscription {
   id        Int      @id @default(autoincrement())
   endpoint  String   @unique
   keysJson  String
-  userId    String? 
+  userId    String?
   createdAt DateTime @default(now())
 }
