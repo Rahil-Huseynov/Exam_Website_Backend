@@ -414,6 +414,7 @@ export class AuthService {
         brand: car.brand,
         model: car.model,
         year: car.year,
+        publicId: car.publicId,
         price: car.price,
         mileage: car.mileage,
         fuel: car.fuel,
