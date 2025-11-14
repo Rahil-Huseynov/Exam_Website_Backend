@@ -3,7 +3,7 @@ import { CarsService, FilterOptions } from './cars.service';
 
 @Controller('car')
 export class CarsController {
-  constructor(private readonly carsService: CarsService) {}
+  constructor(private readonly carsService: CarsService) { }
 
   private stripIdsFromCarsPayload(payload: any) {
     if (!payload) return payload;
@@ -331,7 +331,9 @@ export class CarsController {
       maxPrice: maxPrice ? parseInt(maxPrice, 10) : undefined,
     };
 
-    return this.carsService.getAllCarsPremiumFirst(pageNumber, limitNumber, filters);
+    const payload = await this.carsService.getAllCarsPremiumFirst(pageNumber, limitNumber, filters);
+    return this.stripIdsFromCarsPayload(payload);
+
   }
 
   @Get('premium')
