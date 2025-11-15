@@ -299,14 +299,37 @@ export class UserCarsService {
     }
   }
   async getUserCarByPublicId(publicId: string) {
-    const car = await this.prisma.userCars.findFirst({
-      where: { publicId },
-      include: {
-        images: { orderBy: { order: 'asc' } },
-        allCar: { include: { images: { orderBy: { order: 'asc' } } } },
-        user: true,
-      },
+    const car = await this.prisma.$transaction(async (tx) => {
+      const updatedUserCar = await tx.userCars.update({
+        where: { publicId },
+        data: { viewcount: { increment: 1 } },
+        include: {
+          images: { orderBy: { order: 'asc' } },
+          allCar: { include: { images: { orderBy: { order: 'asc' } } } },
+          user: true,
+        },
+      });
+
+      if (updatedUserCar.allCar?.id) {
+        await tx.allCarsList.update({
+          where: { id: updatedUserCar.allCar.id },
+          data: { viewcount: { increment: 1 } },
+        });
+        const refetched = await tx.userCars.findUnique({
+          where: { publicId },
+          include: {
+            images: { orderBy: { order: 'asc' } },
+            allCar: { include: { images: { orderBy: { order: 'asc' } } } },
+            user: true,
+          },
+        });
+
+        return refetched;
+      }
+
+      return updatedUserCar;
     });
+
     if (!car) return null;
 
     const normalizeUrl = (u: string | null | undefined) =>
@@ -383,6 +406,8 @@ export class UserCarsService {
 
     return result;
   }
+
+
 
   async updateUserCar(id: number, data: any) {
     const userCar = await this.prisma.userCars.findUnique({

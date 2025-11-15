@@ -12,10 +12,16 @@ interface AuthenticatedRequest extends Request {
 export class FavoritesController {
   constructor(private readonly favoritesService: FavoritesService) { }
 
-  @Post(':carId')
-  async addFavorite(@Req() req: AuthenticatedRequest, @Param('carId') carId: string) {
+  @Post(':publicId')
+  async addFavorite(@Req() req: AuthenticatedRequest, @Param('publicId') publicId: string) {
     const userId = req.user.id;
-    return this.favoritesService.addFavorite(userId, parseInt(carId));
+    return this.favoritesService.addFavorite(userId, publicId);
+  }
+
+  @Delete('by-car/:publicId')
+  async removeFavoriteByPublicId(@Req() req: AuthenticatedRequest, @Param('publicId') publicId: string) {
+    const userId = req.user.id;
+    return this.favoritesService.removeFavoriteByPublicId(userId, publicId);
   }
 
   @Delete(':id')
