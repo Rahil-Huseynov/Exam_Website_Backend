@@ -360,7 +360,7 @@ export class AuthService {
       .content { padding: 36px 30px; text-align: left; color:#374151; line-height:1.6; }
       .greeting { font-size:18px; font-weight:700; margin-bottom:12px; color:#111827; }
       .message { font-size:15px; margin-bottom:20px; color:#4b5563; }
-      .cta-wrap { text-align:center; margin: 18px 0; }
+      .cta-wrap { text-align:center; margin: 18px 0; color:white }
       .cta {
         display:inline-block;
         background: linear-gradient(135deg,#667eea 0%,#764ba2 100%);
@@ -388,8 +388,8 @@ export class AuthService {
           You can now sign in and start listing, browsing, or saving cars.
         </div>
 
-        <div class="cta-wrap">
-          <a class="cta" href="https://www.carvia.pl/" target="_blank" rel="noreferrer">Go to Carvia</a>
+        <div class="cta-wrap" style="color:white">
+          <a class="cta" style="color:white" href="https://www.carvia.pl/" target="_blank" rel="noreferrer">Go to Carvia</a>
         </div>
 
         <div class="message">
