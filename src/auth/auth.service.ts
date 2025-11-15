@@ -4,7 +4,16 @@ import * as argon from 'argon2';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { LoginAuthDto, RegisterAdminAuthDto, RegisterAuthDto, UpdateUserDto } from './dto';
+import {
+  LoginAuthDto,
+  RegisterAdminAuthDto,
+  RegisterAuthDto,
+  UpdateUserDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  VerifyEmailDto,
+  ResendVerificationDto,
+} from './dto';
 import { randomBytes } from 'crypto';
 import * as nodemailer from 'nodemailer';
 import { Prisma } from 'generated/prisma';
@@ -65,23 +74,51 @@ export class AuthService {
     return this.prisma.user.findUnique({ where: { email } });
   }
 
-  private async createAndSendVerificationCode(userId: number, email: string) {
+  private async upsertEmailVerificationFromDto(dto: RegisterAuthDto) {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expires = new Date(Date.now() + 5 * 60 * 1000);
+    const hashedPassword = await argon.hash(dto.password);
+
+    const createData: any = {
+      email: dto.email,
+      hash: hashedPassword,
+      firstName: dto.firstName ?? null,
+      lastName: dto.lastName ?? null,
+      phoneCode: dto.phoneCode ?? null,
+      phoneNumber: dto.phoneNumber ?? null,
+      role: dto.role ?? 'client',
+      code,
+      expires,
+    };
+
     try {
-      await this.prisma.emailVerification.deleteMany({ where: { userId } });
-    } catch (e) {
+      const rec = await this.prisma.emailVerification.upsert({
+        where: { email: dto.email },
+        update: {
+          code: createData.code,
+          expires: createData.expires,
+          hash: createData.hash,
+          firstName: createData.firstName,
+          lastName: createData.lastName,
+          phoneCode: createData.phoneCode,
+          phoneNumber: createData.phoneNumber,
+          role: createData.role,
+          updatedAt: new Date() as any,
+        } as any,
+        create: createData as any,
+      });
+
+      try {
+        await this.sendVerificationEmail(dto.email, code);
+      } catch (err) {
+        this.logger.warn('Failed to send verification email: ' + ((err as any)?.message ?? err));
+      }
+
+      return rec;
+    } catch (err) {
+      this.logger.error('Error upserting email verification: ' + ((err as any)?.message ?? err));
+      throw err;
     }
-
-    await this.prisma.emailVerification.create({
-      data: {
-        code,
-        expires,
-        user: { connect: { id: userId } },
-      },
-    });
-
-    await this.sendVerificationEmail(email, code);
   }
 
   private async sendVerificationEmail(to: string, code: string) {
@@ -96,180 +133,33 @@ export class AuthService {
     });
 
     const html = `
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-        background: linear-gradient(135deg, #f5f7fa 0%, #f0f4f8 100%);
-        padding: 40px 20px;
-        min-height: 100vh;
-      }
-      
-      .container {
-        max-width: 500px;
-        margin: 0 auto;
-        background: white;
-        border-radius: 16px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
-        overflow: hidden;
-      }
-      
-      .header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 40px 30px;
-        text-align: center;
-        color: white;
-      }
-      
-      .logo {
-         display:block;
-         margin: 0 auto 12px;
-         width: 140px;
-         max-width: 45%;
-         height: auto;
-       }
-      
-      .header h1 {
-        font-size: 28px;
-        font-weight: 700;
-        margin-bottom: 8px;
-        letter-spacing: -0.5px;
-      }
-      
-      .header p {
-        font-size: 14px;
-        opacity: 0.9;
-        font-weight: 500;
-      }
-      
-      .content {
-        padding: 40px 30px;
-        text-align: center;
-      }
-      
-      .intro {
-        font-size: 15px;
-        color: #666;
-        margin-bottom: 32px;
-        line-height: 1.6;
-      }
-      
-      .code-box {
-        background: linear-gradient(135deg, #f5f7fa 0%, #f0f4f8 100%);
-        border: 2px solid #e8eef7;
-        border-radius: 12px;
-        padding: 32px 24px;
-        margin-bottom: 32px;
-      }
-      
-      .code-label {
-        font-size: 12px;
-        color: #999;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 12px;
-        font-weight: 600;
-      }
-      
-      .code {
-        font-size: 36px;
-        font-weight: 700;
-        letter-spacing: 8px;
-        color: #667eea;
-        font-family: 'Courier New', monospace;
-        word-spacing: 12px;
-      }
-      
-      .validity {
-        font-size: 13px;
-        color: #999;
-        margin-bottom: 24px;
-        line-height: 1.6;
-      }
-      
-      .validity strong {
-        color: #667eea;
-        font-weight: 600;
-      }
-      
-      .warning {
-        background: #fef3f2;
-        border-left: 4px solid #f97066;
-        padding: 12px 16px;
-        border-radius: 6px;
-        font-size: 12px;
-        color: #7a2f2f;
-        text-align: left;
-        margin-top: 24px;
-      }
-      
-      .footer {
-        background: #f9fafb;
-        padding: 24px 30px;
-        text-align: center;
-        border-top: 1px solid #e5e7eb;
-      }
-      
-      .footer p {
-        font-size: 12px;
-        color: #999;
-      }
-      
-      .footer a {
-        color: #667eea;
-        text-decoration: none;
-      }
-      
-      .footer a:hover {
-        text-decoration: underline;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="header">
-        <div>
-      <a href="https://carvia.pl/" target="_blank">
-    <img class="logo" src="https://api.carvia.pl/uploads/Logo.png" alt="logo" />
-      </a>
-        </div>
-        <h1>Email Verification</h1>
-        <p>Secure your account</p>
-      </div>
-      
-      <div class="content">
-        <p class="intro">Enter the verification code below to confirm your email address and complete your registration.</p>
-        
-        <div class="code-box">
-          <div class="code-label">Your Code</div>
-          <div class="code">${code}</div>
-        </div>
-        
-        <p class="validity">This code is valid for <strong>5 minutes</strong>. Please enter it in your browser window.</p>
-        
-        <div class="warning">
-          <strong>Didn't request this?</strong> If you didn't sign up for Carvia.pl, you can safely ignore this email.
-        </div>
-      </div>
-      
-      <div class="footer">
-        <p>© ${new Date().getFullYear()} <strong>Carvia.pl</strong> • <a href="#">Privacy Policy</a></p>
-      </div>
-    </div>
-  </body>
-  </html>
-`;
-    const logoPath = join(process.cwd(), 'public', 'Logo', 'carvia.png');
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width,initial-scale=1" />
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial; background:#f5f7fa; margin:0; padding:20px }
+            .card{ max-width:600px; margin:0 auto; background:#fff; border-radius:12px; padding:28px; box-shadow:0 10px 30px rgba(0,0,0,0.06)}
+            .logo{ display:block; margin:0 auto 12px; width:140px }
+            .code{ font-family: 'Courier New', monospace; font-size:34px; letter-spacing:6px; color:#667eea; text-align:center; margin:22px 0 }
+            .muted{ color:#777; font-size:14px; text-align:center }
+            .footer{ margin-top:18px; text-align:center; color:#999; font-size:12px }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <a href="https://carvia.pl/" target="_blank" rel="noreferrer"><img class="logo" src="https://api.carvia.pl/uploads/Logo.png" alt="logo" /></a>
+            <h2 style="text-align:center">Email verification</h2>
+            <p class="muted" style="text-align:center">Use the code below to verify your email. It is valid for 5 minutes.</p>
+            <div class="code">${code}</div>
+            <p class="muted">If you didn't request this, ignore this email.</p>
+            <div class="footer">© ${new Date().getFullYear()} Carvia.pl</div>
+          </div>
+        </body>
+      </html>
+    `;
+
     await transporter.sendMail({
       from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
       to,
@@ -277,70 +167,121 @@ export class AuthService {
       html,
     });
   }
-
-  async userSignup(dto: RegisterAuthDto) {
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+  private async sendWelcomeEmail(to: string, name?: string) {
+    const transporter = nodemailer.createTransport({
+      host: this.config.get('SMTP_HOST'),
+      port: +this.config.get('SMTP_PORT'),
+      secure: +this.config.get('SMTP_PORT') === 465,
+      auth: {
+        user: this.config.get('SMTP_USER'),
+        pass: this.config.get('SMTP_PASS'),
+      },
     });
-    if (existingUser) {
-      if (!existingUser.isEmailVerified) {
-        await this.createAndSendVerificationCode(existingUser.id, existingUser.email);
-        return {
-          success: true,
-          message: 'Verification code resent to your email',
-          email: existingUser.email,
-        };
-      }
-      throw new ForbiddenException('Email already in use');
-    }
 
-    const hash = await argon.hash(dto.password);
+    const safeName = name || 'User';
+    const html = `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial;padding:20px;">
+        <h2>Welcome, ${safeName}!</h2>
+        <p>Your account at Carvia.pl has been activated. You can now sign in and start using the service.</p>
+        <p style="margin-top:16px">— Carvia.pl Team</p>
+      </div>
+    `;
 
     try {
-      const user = await this.prisma.user.create({
-        data: {
-          email: dto.email,
-          hash,
-          firstName: dto.firstName,
-          lastName: dto.lastName,
-          phoneNumber: dto.phoneNumber,
-          phoneCode: dto.phoneCode,
-          role: dto.role ?? 'client',
-          isEmailVerified: false,
-        },
+      await transporter.sendMail({
+        from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
+        to,
+        subject: 'Welcome to Carvia.pl — Account activated',
+        html,
       });
-
-      await this.createAndSendVerificationCode(user.id, user.email);
-
-      return {
-        success: true,
-        message: "Verification code sent to your email",
-        email: user.email,
-      };
-    } catch (error) {
-      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ForbiddenException('Email already in use');
-      }
-      throw error;
+    } catch (err) {
+      this.logger.warn('Failed to send welcome email:  ' + ((err as any)?.message ?? err));
     }
   }
 
-  async verifyEmail(email: string, code: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) throw new BadRequestException('User not found');
+  async userSignup(dto: RegisterAuthDto) {
+    const existingUser = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (existingUser && existingUser.isEmailVerified) {
+      throw new ForbiddenException('Email already in use');
+    }
 
-    const tokenRecord = await this.prisma.emailVerification.findFirst({
-      where: { userId: user.id, code },
-      orderBy: { createdAt: 'desc' },
+    await this.upsertEmailVerificationFromDto(dto);
+
+    return {
+      success: true,
+      message: 'Verification code sent to your email (check spam). Complete verification to activate account.',
+      email: dto.email,
+    };
+  }
+
+  async verifyEmail(email: string, code: string) {
+    const record = await this.prisma.emailVerification.findFirst({
+      where: { email, code },
+      orderBy: { createdAt: 'desc' as any },
     });
 
-    if (!tokenRecord) throw new BadRequestException('Invalid verification code');
-    if (tokenRecord.expires < new Date()) {
-      await this.prisma.emailVerification.deleteMany({ where: { userId: user.id } });
+    if (!record) throw new BadRequestException('Invalid verification code');
+    if (record.expires < new Date()) {
+      await this.prisma.emailVerification.deleteMany({ where: { email } });
       throw new BadRequestException('Verification code expired');
     }
-    await this.prisma.user.update({ where: { id: user.id }, data: { isEmailVerified: true } });
-    await this.prisma.emailVerification.deleteMany({ where: { userId: user.id } });
+
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
+
+    let user;
+    if (existingUser) {
+      if (existingUser.isEmailVerified) {
+        await this.prisma.emailVerification.deleteMany({ where: { email } });
+        const token = await this.signToken(existingUser.id, existingUser.email, false, existingUser.role ?? 'client');
+        return {
+          success: true,
+          message: 'Email already verified',
+          access_token: token.access_token,
+          user: {
+            id: existingUser.id,
+            email: existingUser.email,
+            firstName: existingUser.firstName,
+            lastName: existingUser.lastName,
+            role: existingUser.role,
+            createdAt: existingUser.createdAt,
+          },
+        };
+      }
+
+      user = await this.prisma.user.update({
+        where: { email },
+        data: {
+          hash: (record as any).hash,
+          firstName: (record as any).firstName ?? existingUser.firstName,
+          lastName: (record as any).lastName ?? existingUser.lastName,
+          phoneCode: (record as any).phoneCode ?? existingUser.phoneCode,
+          phoneNumber: (record as any).phoneNumber ?? existingUser.phoneNumber,
+          role: (record as any).role ?? existingUser.role,
+          isEmailVerified: true,
+        },
+      });
+    } else {
+      user = await this.prisma.user.create({
+        data: {
+          email: (record as any).email,
+          hash: (record as any).hash,
+          firstName: (record as any).firstName ?? null,
+          lastName: (record as any).lastName ?? null,
+          phoneCode: (record as any).phoneCode ?? null,
+          phoneNumber: (record as any).phoneNumber ?? null,
+          role: (record as any).role ?? 'client',
+          isEmailVerified: true,
+        },
+      });
+    }
+
+    await this.prisma.emailVerification.deleteMany({ where: { email } });
+    try {
+      await this.sendWelcomeEmail(user.email, user.firstName ?? undefined);
+    } catch (err) {
+      this.logger.warn('Welcome email failed: ' + ((err as any)?.message ?? err));
+    }
+
     const token = await this.signToken(user.id, user.email, false, user.role ?? 'client');
 
     return {
@@ -357,12 +298,29 @@ export class AuthService {
       },
     };
   }
-
   async resendVerification(email: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) throw new BadRequestException('User not found');
-    if (user.isEmailVerified) return { success: true, message: 'Email already verified' };
-    await this.createAndSendVerificationCode(user.id, user.email);
+    const record = await this.prisma.emailVerification.findUnique({ where: { email } });
+    if (!record) throw new BadRequestException('User not found or no pending verification');
+
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
+    if (existingUser && existingUser.isEmailVerified) {
+      return { success: true, message: 'Email already verified' };
+    }
+
+    const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const newExpires = new Date(Date.now() + 5 * 60 * 1000);
+
+    await this.prisma.emailVerification.update({
+      where: { email },
+      data: { code: newCode, expires: newExpires, updatedAt: new Date() } as any,
+    });
+
+    try {
+      await this.sendVerificationEmail(email, newCode);
+    } catch (err) {
+      this.logger.warn('Failed to resend verification email: ' + ((err as any)?.message ?? err));
+    }
+
     return { success: true, message: 'Verification code resent' };
   }
 
@@ -393,7 +351,6 @@ export class AuthService {
       user: this.formatUserWithCars(user),
     };
   }
-
   private formatUserWithCars(user: any) {
     return {
       id: user.id,
@@ -404,7 +361,7 @@ export class AuthService {
       phoneCode: user.phoneCode,
       role: user.role,
       createdAt: user.createdAt,
-      userCars: user.userCars?.map(car => ({
+      userCars: user.userCars?.map((car: any) => ({
         id: car.id,
         brand: car.brand,
         model: car.model,
@@ -432,11 +389,10 @@ export class AuthService {
         email: car.email,
         createdAt: car.createdAt,
         updatedAt: car.updatedAt,
-        images: car.images?.map(img => ({ id: img.id, url: img.url })),
+        images: car.images?.map((img: any) => ({ id: img.id, url: img.url })),
       })),
     };
   }
-
   async getUserWithCars(userId: number) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -788,12 +744,8 @@ export class AuthService {
         pass: this.config.get('SMTP_PASS'),
       },
     });
-    const logoPath = join(process.cwd(), 'public', 'Logo', 'carvia.png');
-    await transporter.sendMail({
-      from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
-      to,
-      subject: 'Password Reset',
-      html: `
+
+    const html = `
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
   <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
     <tr>
@@ -849,8 +801,7 @@ export class AuthService {
                 This is an automated message, please do not reply.
               </p>
               <p style="margin: 12px 0 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.6;">
-  © 2025 All rights reserved.
-                © ${new Date().getFullYear()} Carvia.pl | All rights reserved
+  © ${new Date().getFullYear()} Carvia.pl | All rights reserved
                               </p>
             </td>
           </tr>
@@ -859,7 +810,12 @@ export class AuthService {
     </tr>
   </table>
 </body>
-         `,
+         `;
+    await transporter.sendMail({
+      from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
+      to,
+      subject: 'Password Reset',
+      html,
     });
   }
 
@@ -875,7 +831,6 @@ export class AuthService {
     }
     return true;
   }
-
   async updatePassword(userId: number, currentPassword: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

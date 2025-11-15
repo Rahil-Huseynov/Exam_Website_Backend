@@ -47,7 +47,6 @@ model User {
   updatedAt           DateTime             @updatedAt
   userCars            UserCars[]           @relation("UserToUserCars")
   passwordResetTokens PasswordResetToken[]
-  emailVerifications  EmailVerification[]
   AllCarsList         AllCarsList[]        @relation("UserToAllCarsList")
   favorites           Favorite[]
   @@map("users")
@@ -152,16 +151,23 @@ model PasswordResetToken {
 }
 
 model EmailVerification {
-  id        Int      @id @default(autoincrement())
-  code      String
-  expires   DateTime
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  hash        String
+  firstName   String?
+  lastName    String?
+  phoneCode   String?
+  phoneNumber String?
+  role        String?
+  code        String
+  expires     DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  @@index([userId])
   @@map("email_verifications")
 }
+
+
 
 model PushSubscription {
   id        Int      @id @default(autoincrement())
