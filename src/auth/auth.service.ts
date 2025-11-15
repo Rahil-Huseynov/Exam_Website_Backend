@@ -133,33 +133,179 @@ export class AuthService {
     });
 
     const html = `
-      <!doctype html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width,initial-scale=1" />
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial; background:#f5f7fa; margin:0; padding:20px }
-            .card{ max-width:600px; margin:0 auto; background:#fff; border-radius:12px; padding:28px; box-shadow:0 10px 30px rgba(0,0,0,0.06)}
-            .logo{ display:block; margin:0 auto 12px; width:140px }
-            .code{ font-family: 'Courier New', monospace; font-size:34px; letter-spacing:6px; color:#667eea; text-align:center; margin:22px 0 }
-            .muted{ color:#777; font-size:14px; text-align:center }
-            .footer{ margin-top:18px; text-align:center; color:#999; font-size:12px }
-          </style>
-        </head>
-        <body>
-          <div class="card">
-            <a href="https://carvia.pl/" target="_blank" rel="noreferrer"><img class="logo" src="https://api.carvia.pl/uploads/Logo.png" alt="logo" /></a>
-            <h2 style="text-align:center">Email verification</h2>
-            <p class="muted" style="text-align:center">Use the code below to verify your email. It is valid for 5 minutes.</p>
-            <div class="code">${code}</div>
-            <p class="muted">If you didn't request this, ignore this email.</p>
-            <div class="footer">© ${new Date().getFullYear()} Carvia.pl</div>
-          </div>
-        </body>
-      </html>
-    `;
-
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+        background: linear-gradient(135deg, #f5f7fa 0%, #f0f4f8 100%);
+        padding: 40px 20px;
+        min-height: 100vh;
+      }
+      
+      .container {
+        max-width: 500px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+      }
+      
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 40px 30px;
+        text-align: center;
+        color: white;
+      }
+      
+      .logo {
+         display:block;
+         margin: 0 auto 12px;
+         width: 140px;
+         max-width: 45%;
+         height: auto;
+       }
+      
+      .header h1 {
+        font-size: 28px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        letter-spacing: -0.5px;
+      }
+      
+      .header p {
+        font-size: 14px;
+        opacity: 0.9;
+        font-weight: 500;
+      }
+      
+      .content {
+        padding: 40px 30px;
+        text-align: center;
+      }
+      
+      .intro {
+        font-size: 15px;
+        color: #666;
+        margin-bottom: 32px;
+        line-height: 1.6;
+      }
+      
+      .code-box {
+        background: linear-gradient(135deg, #f5f7fa 0%, #f0f4f8 100%);
+        border: 2px solid #e8eef7;
+        border-radius: 12px;
+        padding: 32px 24px;
+        margin-bottom: 32px;
+      }
+      
+      .code-label {
+        font-size: 12px;
+        color: #999;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 12px;
+        font-weight: 600;
+      }
+      
+      .code {
+        font-size: 36px;
+        font-weight: 700;
+        letter-spacing: 8px;
+        color: #667eea;
+        font-family: 'Courier New', monospace;
+        word-spacing: 12px;
+      }
+      
+      .validity {
+        font-size: 13px;
+        color: #999;
+        margin-bottom: 24px;
+        line-height: 1.6;
+      }
+      
+      .validity strong {
+        color: #667eea;
+        font-weight: 600;
+      }
+      
+      .warning {
+        background: #fef3f2;
+        border-left: 4px solid #f97066;
+        padding: 12px 16px;
+        border-radius: 6px;
+        font-size: 12px;
+        color: #7a2f2f;
+        text-align: left;
+        margin-top: 24px;
+      }
+      
+      .footer {
+        background: #f9fafb;
+        padding: 24px 30px;
+        text-align: center;
+        border-top: 1px solid #e5e7eb;
+      }
+      
+      .footer p {
+        font-size: 12px;
+        color: #999;
+      }
+      
+      .footer a {
+        color: #667eea;
+        text-decoration: none;
+      }
+      
+      .footer a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div>
+      <a href="https://carvia.pl/" target="_blank">
+    <img class="logo" src="https://api.carvia.pl/uploads/Logo.png" alt="logo" />
+      </a>
+        </div>
+        <h1>Email Verification</h1>
+        <p>Secure your account</p>
+      </div>
+      
+      <div class="content">
+        <p class="intro">Enter the verification code below to confirm your email address and complete your registration.</p>
+        
+        <div class="code-box">
+          <div class="code-label">Your Code</div>
+          <div class="code">${code}</div>
+        </div>
+        
+        <p class="validity">This code is valid for <strong>5 minutes</strong>. Please enter it in your browser window.</p>
+        
+        <div class="warning">
+          <strong>Didn't request this?</strong> If you didn't sign up for Carvia.pl, you can safely ignore this email.
+        </div>
+      </div>
+      
+      <div class="footer">
+        <p>© ${new Date().getFullYear()} <strong>Carvia.pl</strong> • <a href="#">Privacy Policy</a></p>
+      </div>
+    </div>
+  </body>
+  </html>
+`;
     await transporter.sendMail({
       from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
       to,
@@ -167,6 +313,7 @@ export class AuthService {
       html,
     });
   }
+
   private async sendWelcomeEmail(to: string, name?: string) {
     const transporter = nodemailer.createTransport({
       host: this.config.get('SMTP_HOST'),
@@ -178,14 +325,87 @@ export class AuthService {
       },
     });
 
-    const safeName = name || 'User';
+    const safeName = name ?? 'User';
     const html = `
-      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial;padding:20px;">
-        <h2>Welcome, ${safeName}!</h2>
-        <p>Your account at Carvia.pl has been activated. You can now sign in and start using the service.</p>
-        <p style="margin-top:16px">— Carvia.pl Team</p>
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+        background: linear-gradient(135deg, #f5f7fa 0%, #f0f4f8 100%);
+        padding: 40px 20px;
+        min-height: 100vh;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+        overflow: hidden;
+      }
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 36px 28px;
+        text-align: center;
+        color: white;
+      }
+      .logo { display:block; margin: 0 auto 12px; width:140px; max-width:45%; height:auto; }
+      .header h1 { font-size: 26px; font-weight:700; margin-bottom:6px; }
+      .header p { font-size:14px; opacity:0.95; margin-top:4px; }
+      .content { padding: 36px 30px; text-align: left; color:#374151; line-height:1.6; }
+      .greeting { font-size:18px; font-weight:700; margin-bottom:12px; color:#111827; }
+      .message { font-size:15px; margin-bottom:20px; color:#4b5563; }
+      .cta-wrap { text-align:center; margin: 18px 0; }
+      .cta {
+        display:inline-block;
+        background: linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+        color:#fff; text-decoration:none;
+        padding:12px 36px; border-radius:10px; font-weight:600;
+      }
+      .note { font-size:13px; color:#9ca3af; text-align:center; margin-top:18px; }
+      .footer { background:#f9fafb; padding:20px 30px; text-align:center; border-top:1px solid #e5e7eb; color:#9ca3af; font-size:13px; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <a href="https://carvia.pl/" target="_blank" rel="noreferrer">
+          <img class="logo" src="https://api.carvia.pl/uploads/Logo.png" alt="Carvia logo" />
+        </a>
+        <h1>Welcome to Carvia.pl</h1>
+        <p>Your account is now active</p>
       </div>
-    `;
+
+      <div class="content">
+        <div class="greeting">Hi ${safeName},</div>
+        <div class="message">
+          Thanks for joining Carvia.pl! Your account has been successfully activated.
+          You can now sign in and start listing, browsing, or saving cars.
+        </div>
+
+        <div class="cta-wrap">
+          <a class="cta" href="https://www.carvia.pl/" target="_blank" rel="noreferrer">Go to Carvia</a>
+        </div>
+
+        <div class="message">
+          If you didn't create an account with this email, please contact our support or ignore this message.
+        </div>
+
+        <div class="note">© ${new Date().getFullYear()} Carvia.pl • <a target="_blank" href="https://www.carvia.pl/privacy" style="color:inherit; text-decoration:underline;">Privacy Policy</a></div>
+      </div>
+
+      <div class="footer">
+        This is an automated message — please do not reply.
+      </div>
+    </div>
+  </body>
+  </html>
+  `;
 
     try {
       await transporter.sendMail({
@@ -195,7 +415,8 @@ export class AuthService {
         html,
       });
     } catch (err) {
-      this.logger.warn('Failed to send welcome email:  ' + ((err as any)?.message ?? err));
+      const msg = (err as any)?.message ?? String(err);
+      this.logger.warn(`Failed to send welcome email: ${msg}`);
     }
   }
 
@@ -744,8 +965,12 @@ export class AuthService {
         pass: this.config.get('SMTP_PASS'),
       },
     });
-
-    const html = `
+    const logoPath = join(process.cwd(), 'public', 'Logo', 'carvia.png');
+    await transporter.sendMail({
+      from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
+      to,
+      subject: 'Password Reset',
+      html: `
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
   <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
     <tr>
@@ -801,7 +1026,8 @@ export class AuthService {
                 This is an automated message, please do not reply.
               </p>
               <p style="margin: 12px 0 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.6;">
-  © ${new Date().getFullYear()} Carvia.pl | All rights reserved
+  © 2025 All rights reserved.
+                © ${new Date().getFullYear()} Carvia.pl | All rights reserved
                               </p>
             </td>
           </tr>
@@ -810,12 +1036,7 @@ export class AuthService {
     </tr>
   </table>
 </body>
-         `;
-    await transporter.sendMail({
-      from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
-      to,
-      subject: 'Password Reset',
-      html,
+         `,
     });
   }
 
