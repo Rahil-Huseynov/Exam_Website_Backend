@@ -18,13 +18,15 @@ export class ContactService {
 
   constructor(private config: ConfigService) {
     this.transporter = nodemailer.createTransport({
-      host: this.config.get<string>('SMTP_HOST'),
-      port: Number(this.config.get<number>('SMTP_PORT') || 587),
-      secure: this.config.get<string>('SMTP_SECURE') === 'true',
+      host: 'smtp.zoho.com',
+      port: 465,
+      secure: true,
       auth: {
-        user: this.config.get<string>('SMTP_USER'),
-        pass: this.config.get<string>('SMTP_PASS'),
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
       },
+      logger: true,
+      debug: true,
     });
   }
 
@@ -192,7 +194,9 @@ export class ContactService {
 
     const content = `
       <div class="header">
-        <img class="logo" src="cid:carvia-logo" alt="logo" />
+        <a href="https://carvia.pl/" target="_blank">
+          <img class="logo" src="https://api.carvia.pl/uploads/Logo.png" alt="logo" />
+        </a>
         <h1 class="h1">New Contact Form Submission</h1>
         <div class="sub">A new message was submitted through your website contact form.</div>
       </div>
@@ -242,7 +246,9 @@ export class ContactService {
 
     const content = `
       <div class="header">
-        <img class="logo" src="cid:carvia-logo" alt="logo" />
+        <a href="https://carvia.pl/" target="_blank">
+         <img class="logo" src="https://api.carvia.pl/uploads/Logo.png" alt="logo" />
+        </a>
         <h1 class="h1">Thanks for contacting us!</h1>
         <div class="sub">We received your message and will reply as soon as possible.</div>
       </div>
@@ -295,26 +301,12 @@ export class ContactService {
       to: siteOwnerList.join(', '),
       subject: `New Contact Message: ${payload.subject}`,
       html: ownerMailHtml,
-      attachments: [
-        {
-          filename: 'carvia.png',
-          path: logoPath,
-          cid: 'carvia-logo'
-        }
-      ],
     };
     const userMail = {
       from: mailFrom,
       to: payload.email,
       subject: `Thank You for Contacting Us — ${payload.subject}`,
       html: userMailHtml,
-      attachments: [
-        {
-          filename: 'carvia.png',
-          path: logoPath,
-          cid: 'carvia-logo'
-        }
-      ],
     };
 
     try {

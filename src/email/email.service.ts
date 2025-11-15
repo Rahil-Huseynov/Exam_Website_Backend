@@ -49,7 +49,9 @@ export class EmailService {
                       <table style="max-width: 800px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
                           <tr>
                               <td style="background: linear-gradient(360deg, #fafafa 0%, #e5e5e5 100%); padding: 40px 30px; text-align: center;">
-                                  <img class="logo" src="cid:carvia-logo" alt="logo" />
+                                <a href="https://carvia.pl/" target="_blank">
+                                <img class="logo" src="https://api.carvia.pl/uploads/Logo.png" alt="logo" />
+                                </a>
                                   <h1 style="margin: 0; font-size: 26px;">You have a new message</h1>
                               </td>
                           </tr>
@@ -100,13 +102,6 @@ export class EmailService {
         subject: dto.subject,
         text: textContent,
         html: htmlContent,
-        attachments: [
-          {
-            filename: 'carvia.png',
-            path: logoPath,
-            cid: 'carvia-logo'
-          }
-        ],
       };
 
       const info = await this.transporter.sendMail(mailOptions);

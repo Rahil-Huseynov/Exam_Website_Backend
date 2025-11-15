@@ -32,14 +32,6 @@ export class MailerService {
       to: data.to,
       subject,
       html,
-      attachments: [
-        {
-          filename: 'carvia.png',
-          path: logoPath,
-          cid: 'carvia-logo'
-        }
-      ],
-
     })
   }
 
@@ -51,15 +43,6 @@ export class MailerService {
       to,
       subject,
       html,
-      attachments: [
-        {
-          filename: 'carvia.png',
-          path: logoPath,
-          cid: 'carvia-logo'
-        }
-      ],
-
-
     })
   }
 
@@ -86,7 +69,11 @@ export class MailerService {
     <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
       
       <div style="background: linear-gradient(360deg, #fafafa 0%, #e5e5e5 100%); padding: 40px 30px; text-align: center;">
-        <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;"><img style="width: 130px;" src="cid:carvia-logo" alt="4"></h1>
+        <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
+        <a href="https://carvia.pl/" target="_blank">
+            <img class="logo" src="https://api.carvia.pl/uploads/Logo.png" alt="logo" />
+        </a>
+        </h1>
       </div>
 
       <div style="padding: 40px 30px; color: #333333; line-height: 1.6;">

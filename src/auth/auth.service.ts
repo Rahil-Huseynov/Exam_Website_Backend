@@ -239,7 +239,9 @@ export class AuthService {
     <div class="container">
       <div class="header">
         <div>
-        <img class="logo" src="cid:carvia-logo" alt="logo" />
+      <a href="https://carvia.pl/" target="_blank">
+    <img class="logo" src="https://api.carvia.pl/uploads/Logo.png" alt="logo" />
+      </a>
         </div>
         <h1>Email Verification</h1>
         <p>Secure your account</p>
@@ -272,13 +274,6 @@ export class AuthService {
       from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
       to,
       subject: 'Your verification code',
-      attachments: [
-        {
-          filename: 'carvia.png',
-          path: logoPath,
-          cid: 'carvia-logo'
-        }
-      ],
       html,
     });
   }
@@ -798,13 +793,6 @@ export class AuthService {
       from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
       to,
       subject: 'Password Reset',
-      attachments: [
-        {
-          filename: 'carvia.png',
-          path: logoPath,
-          cid: 'carvia-logo'
-        }
-      ],
       html: `
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
   <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
@@ -814,7 +802,11 @@ export class AuthService {
            <tr>
             <td style="padding: 48px 40px 32px; text-align: center; background: linear-gradient(360deg, #fafafa 0%, #e5e5e5 100%); border-radius: 16px 16px 0 0;">
  <div style="padding: 40px 30px; text-align: center;">
-        <h1 style="margin: 0; color: #000; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;"><img style="width: 130px;" src="cid:carvia-logo" alt="4"></h1>
+        <h1 style="margin: 0; color: #000; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
+        <a href="https://carvia.pl/" target="_blank">
+          <img style="width: 130px;" src="https://api.carvia.pl/uploads/Logo.png" alt="Logo" />
+        </a>
+        </h1>
       </div>
               <h1 style="margin: 0; color: #000; font-size: 28px; font-weight: 700; line-height: 1.3;">Password Reset</h1>
             </td>
