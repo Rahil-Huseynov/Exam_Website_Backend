@@ -56,6 +56,7 @@ export class FavoritesService {
         allCarsListId: car?.id ?? fav.carId,
         car: car
           ? {
+            id: car.id,
             publicId: car.publicId,
             viewcount: car.viewcount,
             brand: car.brand,
