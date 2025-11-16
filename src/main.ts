@@ -58,7 +58,7 @@ async function bootstrap() {
       max: 120,
       standardHeaders: true,
       legacyHeaders: false,
-      message: 'Çox sorgu göndərirsiniz, bir az sonra yenidən cəhd edin.',
+      message: 'Too many requests. Please try again later.',
       skip: (req) => req.method === 'OPTIONS',
     }),
   );
@@ -73,7 +73,7 @@ async function bootstrap() {
   expressApp.use((req, res, next) => {
     const ua = (req.headers['user-agent'] || '').toString().toLowerCase();
     if (ua.includes('curl') || ua.includes('wget') || ua.includes('httpie')) {
-      return res.status(403).send('CLI sorgulara icazə verilmir.');
+      return res.status(403).send('CLI requests are not allowed.');
     }
     next();
   });
