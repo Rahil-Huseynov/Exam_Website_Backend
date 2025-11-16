@@ -9,6 +9,7 @@ export class OriginCheckMiddleware implements NestMiddleware {
     'http://carvia.pl',
     'https://www.carvia.pl',
     'http://www.carvia.pl',
+    'http://localhost:3000',
   ];
 
   use(req: Request, res: Response, next: NextFunction) {

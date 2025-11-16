@@ -36,6 +36,7 @@ async function bootstrap() {
     'http://carvia.pl',
     'https://www.carvia.pl',
     'http://www.carvia.pl',
+    'http://localhost:3000'
   ];
 
   // Enable CORS (ARRAY form, safer)
