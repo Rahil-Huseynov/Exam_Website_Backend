@@ -19,21 +19,20 @@ export class HttpLoggingInterceptor implements NestInterceptor {
         : xForwardedFor.split(',')[0].trim();
       return this.normalizeIp(ip);
     }
-
-    return this.normalizeIp(
-      request.socket?.remoteAddress || request.ip || '',
-    );
+    if (request.ips && request.ips.length > 0) {
+      return this.normalizeIp(request.ips[0]);
+    }
+    if (request.ip) {
+      return this.normalizeIp(request.ip);
+    }
+    return this.normalizeIp(request.socket?.remoteAddress || 'unknown');
   }
 
   private normalizeIp(rawIp: string): string {
     if (!rawIp) return 'unknown';
-
-    if (rawIp === '::1' || rawIp === '127.0.0.1') return 'localhost';
-
-    if (rawIp.startsWith('::ffff:')) {
-      return rawIp.replace('::ffff:', '');
-    }
-
+    if (rawIp === '::1') return 'localhost';
+    if (rawIp === '127.0.0.1') return 'localhost';
+    if (rawIp.startsWith('::ffff:')) return rawIp.replace('::ffff:', '');
     return rawIp;
   }
 

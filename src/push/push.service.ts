@@ -20,7 +20,7 @@ export class PushService {
   constructor(private readonly prisma: PrismaService) {
     const publicKey = process.env.PUBLIC_VAPID_KEY;
     const privateKey = process.env.PRIVATE_VAPID_KEY;
-    const contact = `mailto:${process.env.EMAIL_FOR_VAPID || 'admin@localhost'}`;
+    const contact = `mailto:${process.env.EMAIL_FOR_VAPID || 'info@carvia.pl'}`;
 
     if (!publicKey || !privateKey) {
       this.logger.error('VAPID keys are missing. Set PUBLIC_VAPID_KEY and PRIVATE_VAPID_KEY in .env');
