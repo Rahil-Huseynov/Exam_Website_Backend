@@ -1,5 +1,5 @@
-import * as webpush from 'web-push';
+import webpush from 'web-push';
 
-const webpush = require('web-push');
 const keys = webpush.generateVAPIDKeys();
-console.log(keys);
+console.log("Public Key:", keys.publicKey);
+console.log("Private Key:", keys.privateKey);
