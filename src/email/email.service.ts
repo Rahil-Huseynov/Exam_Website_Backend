@@ -2,7 +2,6 @@ import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common
 import * as nodemailer from 'nodemailer';
 import { ConfigService } from '@nestjs/config';
 import { SendEmailDto } from './dto/send-email.dto';
-import { join } from 'path';
 
 @Injectable()
 export class EmailService {
@@ -11,21 +10,28 @@ export class EmailService {
 
   constructor(private config: ConfigService) {
     this.transporter = nodemailer.createTransport({
-      host: this.config.get<string>('SMTP_HOST'),
-      port: Number(this.config.get<string>('SMTP_PORT') || 587),
-      secure: this.config.get<string>('SMTP_SECURE') === 'true',
+      host: this.config.get('SMTP_HOST'),
+      port: Number(this.config.get('SMTP_PORT')),
+      secure: true,
       auth: {
-        user: this.config.get<string>('SMTP_USER'),
-        pass: this.config.get<string>('SMTP_PASS'),
+        user: this.config.get('SMTP_USER'),
+        pass: this.config.get('SMTP_PASS'),
       },
+      connectionTimeout: 10000,
+      greetingTimeout: 5000,
+      socketTimeout: 10000,
+    });
+
+    this.transporter.verify((err, success) => {
+      if (err) {
+        this.logger.error('SMTP verification failed', err);
+      } else {
+        this.logger.log('SMTP ready to send emails');
+      }
     });
   }
 
-  private buildEmailTemplate(
-    subject: string,
-    context: SendEmailDto['context'],
-    message: string,
-  ): string {
+  private buildEmailTemplate(subject: string, context: SendEmailDto['context']): string {
     const year = new Date().getFullYear();
     const { title, body, button } = context;
 
@@ -40,6 +46,7 @@ export class EmailService {
               body { margin: 0; padding: 0; background-color: #f4f7f6; font-family: Arial, sans-serif; }
               table { border-collapse: collapse; width: 100%; }
               td { padding: 0; }
+              .logo { width: 150px; }
           </style>
       </head>
       <body>
@@ -92,16 +99,16 @@ export class EmailService {
         contentType: file.mimetype,
       }));
 
-      const htmlContent = this.buildEmailTemplate(dto.subject, dto.context, dto.message ?? dto.context.title);
+      const htmlContent = this.buildEmailTemplate(dto.subject, dto.context);
+      const textContent = `${dto.context.title}\n\n${dto.context.body.replace(/<[^>]+>/g, '')}\n\n${dto.context.button ? `${dto.context.button.text}: ${dto.context.button.link}` : ''}`;
 
-      const textContent = `${dto.context.title}\n\n${dto.context.body.replace(/<[^>]+>/g, '')}\n\n${dto.context.button ? `${dto.context.button.text}: ${dto.context.button.link}` : ''
-        }`;
-      const logoPath = join(process.cwd(), 'public', 'Logo', 'carvia.png');
-      const mailOptions = {
+      const mailOptions: nodemailer.SendMailOptions = {
+        from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
         to: dto.recipients.join(', '),
         subject: dto.subject,
         text: textContent,
         html: htmlContent,
+        attachments,
       };
 
       const info = await this.transporter.sendMail(mailOptions);

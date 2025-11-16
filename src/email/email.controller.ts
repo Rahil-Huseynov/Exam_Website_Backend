@@ -7,26 +7,26 @@ import {
   BadRequestException,
   UsePipes,
   ValidationPipe,
-} from "@nestjs/common";
-import { FilesInterceptor } from "@nestjs/platform-express";
-import { memoryStorage } from "multer";
-import { EmailService } from "./email.service";
-import { SendEmailDto } from "./dto/send-email.dto";
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { EmailService } from './email.service';
+import { SendEmailDto } from './dto/send-email.dto';
 
-@Controller("emails")
+@Controller('emails')
 export class EmailController {
-  constructor(private readonly emailService: EmailService) { }
+  constructor(private readonly emailService: EmailService) {}
 
-  @Post("send")
+  @Post('send')
   @UsePipes(new ValidationPipe({ transform: true }))
-  @UseInterceptors(FilesInterceptor("attachments", 10, { storage: memoryStorage() }))
+  @UseInterceptors(FilesInterceptor('attachments', 10, { storage: memoryStorage() }))
   async sendEmail(@Body() body: any, @UploadedFiles() files?: Express.Multer.File[]) {
     const recipients = this.normalizeRecipients(body.recipients);
-    if (!recipients.length) throw new BadRequestException("Recipients are required");
+    if (!recipients.length) throw new BadRequestException('Recipients are required');
 
     const context = body.context || {
-      title: body.subject || "No title",
-      body: body.message || "",
+      title: body.subject || 'No title',
+      body: body.message || '',
     };
 
     const dto: SendEmailDto = {
@@ -42,7 +42,7 @@ export class EmailController {
   private normalizeRecipients(recipients: any): string[] {
     if (!recipients) return [];
     if (Array.isArray(recipients)) return recipients;
-    if (typeof recipients === "string") {
+    if (typeof recipients === 'string') {
       try {
         const parsed = JSON.parse(recipients);
         if (Array.isArray(parsed)) return parsed;
