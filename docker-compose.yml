@@ -11,6 +11,56 @@ services:
       POSTGRES_DB: nest
     networks:
       - freecodecamp
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  db-backup:
+    image: postgres:13
+    depends_on:
+      - db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
+      POSTGRES_DB: nest
+    networks:
+      - freecodecamp
+    volumes:
+      - /mnt/Disk_1TB/Backup:/backups         
+      - ./uploads:/uploads                    
+      - db_data:/var/lib/postgresql/data_r    
+    command: >
+      bash -c '
+        echo "Backup servisi ba?lad?";
+        mkdir -p /backups;
+        while true; do
+          TS=$$(date +%Y%m%d_%H%M%S);
+          DUMP_FILE=db_$$TS.sql;
+          ARCHIVE_FILE=backup_$$TS.tar.gz;
+
+          echo "Postgres dump haz?rlan?r...";
+          PGPASSWORD=$$POSTGRES_PASSWORD pg_dump \
+            -h db \
+            -U $$POSTGRES_USER \
+            $$POSTGRES_DB > /backups/$$DUMP_FILE;
+
+          echo "DB dump + uploads + raw data arxivl?nir...";
+          tar -czf /backups/$$ARCHIVE_FILE \
+            -C /backups $$DUMP_FILE \
+            -C / uploads \
+            -C /var/lib/postgresql data_r;
+
+          rm /backups/$$DUMP_FILE;
+
+          echo "3 g�nd?n k�hn? backup-lar silinir...";
+          find /backups -type f -name "backup_*.tar.gz" -mtime +3 -delete;
+
+          echo "N�vb?ti backup 24 saat sonra...";
+          sleep 86400;
+        done
+      '
 
 networks:
   freecodecamp:
+
+volumes:
+  db_data:
