@@ -1,6 +1,5 @@
 generator client {
   provider      = "prisma-client-js"
-  output        = "../generated/prisma"
   binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
@@ -40,106 +39,16 @@ model User {
   firstName           String?
   lastName            String?
   role                String?
-  phoneCode           String?
-  phoneNumber         String?
   isEmailVerified     Boolean              @default(false)
+
+  balance             Int                  @default(0)
+  attempts            Attempt[]
+
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
-  userCars            UserCars[]           @relation("UserToUserCars")
   passwordResetTokens PasswordResetToken[]
-  AllCarsList         AllCarsList[]        @relation("UserToAllCarsList")
-  favorites           Favorite[]
+
   @@map("users")
-}
-
-model Favorite {
-  id         Int          @id @default(autoincrement())
-  userId     Int
-  carId      Int
-  createdAt  DateTime     @default(now())
-  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  car        AllCarsList  @relation(fields: [carId], references: [id], onDelete: Cascade)
-  @@unique([userId, carId])
-}
-
-model UserCars {
-  id               Int         @id @default(autoincrement())
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
-  brand            String?
-  model            String?
-  year             Int
-  price            Int
-  mileage          Int
-  fuel             String?
-  condition        String?
-  color            String?
-  viewcount        Int         @default(0)
-  ban              String?
-  location         String?
-  engine           String?
-  gearbox          String?
-  description      String?
-  features         String[]
-  status           String?     @default("basic")
-  premiumExpiresAt DateTime?
-  SaleType         String?
-  vinCode          String?
-  images           Carimages[] @relation("UserCarImages")
-  userId           Int
-  user             User        @relation("UserToUserCars", fields: [userId], references: [id])
-  allCarsListId    Int?        @unique
-  allCar           AllCarsList?@relation("UserCarToAllCar", fields: [allCarsListId], references: [id], onDelete: Cascade)
-
-  publicId          String?     @unique
-
-  @@map("userJournal")
-}
-
-model AllCarsList {
-  id             Int         @id @default(autoincrement())
-  createdAt      DateTime    @default(now())
-  brand          String?
-  model          String?
-  year           Int
-  price          Int
-  mileage        Int
-  fuel           String?
-  condition      String?
-  color          String?
-  ban            String?
-  viewcount      Int         @default(0)
-  location       String?
-  engine         String?
-  gearbox        String?
-  description    String?
-  features       String[]
-  status         String?     @default("basic")
-  premiumExpiresAt DateTime?
-  SaleType       String?
-  vinCode        String?
-  images         Carimages[] @relation("AllCarImages")
-
-  userCar        UserCars?   @relation("UserCarToAllCar")
-  favorites      Favorite[]
-  userId         Int?
-  user           User?       @relation("UserToAllCarsList", fields: [userId], references: [id])
-
-  publicId       String?     @unique
-
-  @@map("allCarsList")
-}
-
-model Carimages {
-  id        Int          @id @default(autoincrement())
-  url       String
-  order     Int      @default(0)
-  allCarId  Int?
-  allCar    AllCarsList? @relation("AllCarImages", fields: [allCarId], references: [id])
-  userCarId Int?
-  userCar   UserCars?    @relation("UserCarImages", fields: [userCarId], references: [id])
-
-  @@map("carImages")
 }
 
 model PasswordResetToken {
@@ -167,12 +76,141 @@ model EmailVerification {
   @@map("email_verifications")
 }
 
+model University {
+  id        String    @id @default(cuid())
+  name      String
+  faculties Faculty[]
+  createdAt DateTime  @default(now())
+}
 
+model Faculty {
+  id           String     @id @default(cuid())
+  name         String
+  universityId String
+  university   University @relation(fields: [universityId], references: [id])
+  courses      Course[]
+}
 
-model PushSubscription {
-  id        Int      @id @default(autoincrement())
-  endpoint  String   @unique
-  keysJson  String
-  userId    String?
+model Course {
+  id        String  @id @default(cuid())
+  title     String
+  facultyId String
+  faculty   Faculty @relation(fields: [facultyId], references: [id])
+  topics    Topic[]
+}
+
+model Topic {
+  id       String         @id @default(cuid())
+  title    String
+  courseId String
+  course   Course         @relation(fields: [courseId], references: [id])
+  banks    QuestionBank[]
+}
+
+model QuestionBank {
+  id        String      @id @default(cuid())
+  name      String
+  topicId   String
+  topic     Topic       @relation(fields: [topicId], references: [id])
+
+  pdfFiles  PdfImport[]
+  questions Question[]
+  attempts  Attempt[]
+
+  createdAt DateTime    @default(now())
+}
+
+model PdfImport {
+  id            String       @id @default(cuid())
+  bankId        String
+  bank          QuestionBank @relation(fields: [bankId], references: [id])
+
+  originalName  String
+  storageKey    String
+  extractedText String?
+  status        PdfStatus    @default(PENDING)
+  createdAt     DateTime     @default(now())
+
+  questions     Question[]
+}
+
+enum PdfStatus {
+  PENDING
+  PARSED
+  FAILED
+}
+
+model Question {
+  id          String       @id @default(cuid())
+  bankId      String
+  bank        QuestionBank @relation(fields: [bankId], references: [id])
+
+  text        String
+  explanation String?
+  difficulty  Int          @default(1)
+
+  correctOptionId   String?
+  correctOption     QuestionOption? @relation("CorrectOption", fields: [correctOptionId], references: [id])
+  correctAnswerText String?
+
+  options       QuestionOption[]
+  sourcePdfId   String?
+  sourcePdf     PdfImport? @relation(fields: [sourcePdfId], references: [id])
+
+  createdAt     DateTime   @default(now())
+
+  attemptAnswers AttemptAnswer[]
+}
+
+model QuestionOption {
+  id         String   @id @default(cuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id])
+  text       String
+
+  correctForQuestions Question[] @relation("CorrectOption")
+
+  chosenInAnswers AttemptAnswer[]
+
+  @@unique([questionId, text])
+}
+
+model Attempt {
+  id String @id @default(cuid())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  bankId String
+  bank   QuestionBank @relation(fields: [bankId], references: [id])
+
+  status     AttemptStatus @default(IN_PROGRESS)
+  startedAt  DateTime      @default(now())
+  finishedAt DateTime?
+  score      Int           @default(0)
+  total      Int           @default(0)
+
+  answers AttemptAnswer[]
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  FINISHED
+}
+
+model AttemptAnswer {
+  id        String  @id @default(cuid())
+  attemptId String
+  attempt   Attempt @relation(fields: [attemptId], references: [id])
+
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id])
+
+  selectedOptionId String
+  selectedOption   QuestionOption @relation(fields: [selectedOptionId], references: [id])
+
+  isCorrect Boolean
   createdAt DateTime @default(now())
+
+  @@unique([attemptId, questionId])
 }

@@ -11,19 +11,10 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
 import { HttpLoggingInterceptor } from './common/interceptors/http-logging.interceptor';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { CacheModule } from '@nestjs/cache-manager';
-import { UserCarsModule } from './user-cars/user-cars.module';
-import { CarImagesModule } from './car-images/car-images.module';
-import { CarsModule } from './cars/cars.module';
-import { MailModule } from './mailer/mailer.module';
 import { CustomCacheInterceptor } from './common/interceptors/custom-cache.interceptor';
-import { StatsModule } from './stats/stats.module';
-import { FavoritesModule } from './favorites/favorites.module';
-import { ContactModule } from './contact/contact.module';
-import { EmailModule } from './email/email.module';
-import { PaypalModule } from './paypal/paypal.module';
-import { TranslationModule } from './translation/translation.module';
-import { PushModule } from './push/push.module';
-import { PushService } from './push/push.service';
+import { PdfModule } from './pdf/pdf.module';
+import { QuestionsModule } from './questions/questions.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   providers: [
@@ -36,7 +27,8 @@ import { PushService } from './push/push.service';
       useClass: CustomCacheInterceptor,
     },
   ],
-  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, PushModule, FavoritesModule, EmailModule, TranslationModule, PaypalModule, StatsModule, ContactModule, MailModule, CarsModule, LogsModule, UserModule, AdminSeederModule, PrismaModule, UserCarsModule, CarImagesModule,
+  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, LogsModule, UserModule, AdminSeederModule, PrismaModule, PdfModule, QuestionsModule, UsersModule,
+
   ServeStaticModule.forRoot({
     rootPath: join(__dirname, '..', 'uploads'),
     serveRoot: '/uploads',

@@ -166,7 +166,6 @@ export class AuthController {
 
     const id = req.user?.sub ?? req.user?.id;
     if (req.user?.isAdmin) return this.authService.getAdminById(id);
-    return this.authService.getUserWithCars(id);
   }
 
   @UseGuards(JwtGuard)

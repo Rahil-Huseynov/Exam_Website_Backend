@@ -9,10 +9,6 @@ import {
   RegisterAdminAuthDto,
   RegisterAuthDto,
   UpdateUserDto,
-  ForgotPasswordDto,
-  ResetPasswordDto,
-  VerifyEmailDto,
-  ResendVerificationDto,
 } from './dto';
 import { randomBytes } from 'crypto';
 import * as nodemailer from 'nodemailer';
@@ -84,8 +80,6 @@ export class AuthService {
       hash: hashedPassword,
       firstName: dto.firstName ?? null,
       lastName: dto.lastName ?? null,
-      phoneCode: dto.phoneCode ?? null,
-      phoneNumber: dto.phoneNumber ?? null,
       role: dto.role ?? 'client',
       code,
       expires,
@@ -100,8 +94,6 @@ export class AuthService {
           hash: createData.hash,
           firstName: createData.firstName,
           lastName: createData.lastName,
-          phoneCode: createData.phoneCode,
-          phoneNumber: createData.phoneNumber,
           role: createData.role,
           updatedAt: new Date() as any,
         } as any,
@@ -132,182 +124,9 @@ export class AuthService {
       },
     });
 
-    const html = `
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-        background: linear-gradient(135deg, #f5f7fa 0%, #f0f4f8 100%);
-        padding: 40px 20px;
-        min-height: 100vh;
-      }
-      
-      .container {
-        max-width: 500px;
-        margin: 0 auto;
-        background: white;
-        border-radius: 16px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
-        overflow: hidden;
-      }
-      
-      .header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 40px 30px;
-        text-align: center;
-        color: white;
-      }
-      
-      .logo {
-         display:block;
-         margin: 0 auto 12px;
-         width: 140px;
-         max-width: 45%;
-         height: auto;
-       }
-      
-      .header h1 {
-        font-size: 28px;
-        font-weight: 700;
-        margin-bottom: 8px;
-        letter-spacing: -0.5px;
-      }
-      
-      .header p {
-        font-size: 14px;
-        opacity: 0.9;
-        font-weight: 500;
-      }
-      
-      .content {
-        padding: 40px 30px;
-        text-align: center;
-      }
-      
-      .intro {
-        font-size: 15px;
-        color: #666;
-        margin-bottom: 32px;
-        line-height: 1.6;
-      }
-      
-      .code-box {
-        background: linear-gradient(135deg, #f5f7fa 0%, #f0f4f8 100%);
-        border: 2px solid #e8eef7;
-        border-radius: 12px;
-        padding: 32px 24px;
-        margin-bottom: 32px;
-      }
-      
-      .code-label {
-        font-size: 12px;
-        color: #999;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 12px;
-        font-weight: 600;
-      }
-      
-      .code {
-        font-size: 36px;
-        font-weight: 700;
-        letter-spacing: 8px;
-        color: #667eea;
-        font-family: 'Courier New', monospace;
-        word-spacing: 12px;
-      }
-      
-      .validity {
-        font-size: 13px;
-        color: #999;
-        margin-bottom: 24px;
-        line-height: 1.6;
-      }
-      
-      .validity strong {
-        color: #667eea;
-        font-weight: 600;
-      }
-      
-      .warning {
-        background: #fef3f2;
-        border-left: 4px solid #f97066;
-        padding: 12px 16px;
-        border-radius: 6px;
-        font-size: 12px;
-        color: #7a2f2f;
-        text-align: left;
-        margin-top: 24px;
-      }
-      
-      .footer {
-        background: #f9fafb;
-        padding: 24px 30px;
-        text-align: center;
-        border-top: 1px solid #e5e7eb;
-      }
-      
-      .footer p {
-        font-size: 12px;
-        color: #999;
-      }
-      
-      .footer a {
-        color: #667eea;
-        text-decoration: none;
-      }
-      
-      .footer a:hover {
-        text-decoration: underline;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="header">
-        <div>
-      <a href="https://carvia.pl/" target="_blank">
-    <img class="logo" src="https://api.carvia.pl/uploads/Logo.png" alt="logo" />
-      </a>
-        </div>
-        <h1>Email Verification</h1>
-        <p>Secure your account</p>
-      </div>
-      
-      <div class="content">
-        <p class="intro">Enter the verification code below to confirm your email address and complete your registration.</p>
-        
-        <div class="code-box">
-          <div class="code-label">Your Code</div>
-          <div class="code">${code}</div>
-        </div>
-        
-        <p class="validity">This code is valid for <strong>5 minutes</strong>. Please enter it in your browser window.</p>
-        
-        <div class="warning">
-          <strong>Didn't request this?</strong> If you didn't sign up for Carvia.pl, you can safely ignore this email.
-        </div>
-      </div>
-      
-      <div class="footer">
-        <p>© ${new Date().getFullYear()} <strong>Carvia.pl</strong> • <a href="#">Privacy Policy</a></p>
-      </div>
-    </div>
-  </body>
-  </html>
-`;
+    const html = ``;
     await transporter.sendMail({
-      from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
+      from: ` <${this.config.get('SMTP_USER')}>`,
       to,
       subject: 'Your verification code',
       html,
@@ -326,92 +145,13 @@ export class AuthService {
     });
 
     const safeName = name ?? 'User';
-    const html = `
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-        background: linear-gradient(135deg, #f5f7fa 0%, #f0f4f8 100%);
-        padding: 40px 20px;
-        min-height: 100vh;
-      }
-      .container {
-        max-width: 600px;
-        margin: 0 auto;
-        background: white;
-        border-radius: 16px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.08);
-        overflow: hidden;
-      }
-      .header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 36px 28px;
-        text-align: center;
-        color: white;
-      }
-      .logo { display:block; margin: 0 auto 12px; width:140px; max-width:45%; height:auto; }
-      .header h1 { font-size: 26px; font-weight:700; margin-bottom:6px; }
-      .header p { font-size:14px; opacity:0.95; margin-top:4px; }
-      .content { padding: 36px 30px; text-align: left; color:#374151; line-height:1.6; }
-      .greeting { font-size:18px; font-weight:700; margin-bottom:12px; color:#111827; }
-      .message { font-size:15px; margin-bottom:20px; color:#4b5563; }
-      .cta-wrap { text-align:center; margin: 18px 0; color:white }
-      .cta {
-        display:inline-block;
-        background: linear-gradient(135deg,#667eea 0%,#764ba2 100%);
-        color:#fff; text-decoration:none;
-        padding:12px 36px; border-radius:10px; font-weight:600;
-      }
-      .note { font-size:13px; color:#9ca3af; text-align:center; margin-top:18px; }
-      .footer { background:#f9fafb; padding:20px 30px; text-align:center; border-top:1px solid #e5e7eb; color:#9ca3af; font-size:13px; }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="header">
-        <a href="https://carvia.pl/" target="_blank" rel="noreferrer">
-          <img class="logo" src="https://api.carvia.pl/uploads/Logo.png" alt="Carvia logo" />
-        </a>
-        <h1>Welcome to Carvia.pl</h1>
-        <p>Your account is now active</p>
-      </div>
-
-      <div class="content">
-        <div class="greeting">Hi ${safeName},</div>
-        <div class="message">
-          Thanks for joining Carvia.pl! Your account has been successfully activated.
-          You can now sign in and start listing, browsing, or saving cars.
-        </div>
-
-        <div class="cta-wrap" style="color:white">
-          <a class="cta" style="color:white" href="https://www.carvia.pl/" target="_blank" rel="noreferrer">Go to Carvia</a>
-        </div>
-
-        <div class="message">
-          If you didn't create an account with this email, please contact our support or ignore this message.
-        </div>
-
-        <div class="note">© ${new Date().getFullYear()} Carvia.pl • <a target="_blank" href="https://www.carvia.pl/privacy" style="color:inherit; text-decoration:underline;">Privacy Policy</a></div>
-      </div>
-
-      <div class="footer">
-        This is an automated message — please do not reply.
-      </div>
-    </div>
-  </body>
-  </html>
-  `;
+    const html = ``;
 
     try {
       await transporter.sendMail({
-        from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
+        from: ` <${this.config.get('SMTP_USER')}>`,
         to,
-        subject: 'Welcome to Carvia.pl — Account activated',
+        subject: 'Welcome to ... — Account activated',
         html,
       });
     } catch (err) {
@@ -475,8 +215,6 @@ export class AuthService {
           hash: (record as any).hash,
           firstName: (record as any).firstName ?? existingUser.firstName,
           lastName: (record as any).lastName ?? existingUser.lastName,
-          phoneCode: (record as any).phoneCode ?? existingUser.phoneCode,
-          phoneNumber: (record as any).phoneNumber ?? existingUser.phoneNumber,
           role: (record as any).role ?? existingUser.role,
           isEmailVerified: true,
         },
@@ -488,8 +226,6 @@ export class AuthService {
           hash: (record as any).hash,
           firstName: (record as any).firstName ?? null,
           lastName: (record as any).lastName ?? null,
-          phoneCode: (record as any).phoneCode ?? null,
-          phoneNumber: (record as any).phoneNumber ?? null,
           role: (record as any).role ?? 'client',
           isEmailVerified: true,
         },
@@ -559,7 +295,6 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
-      include: { userCars: { include: { images: true } } },
     });
 
     if (!user) throw new ForbiddenException('User not found');
@@ -569,67 +304,7 @@ export class AuthService {
 
     return {
       accessToken: (await this.signToken(user.id, user.email, false, user.role ?? 'client')).access_token,
-      user: this.formatUserWithCars(user),
     };
-  }
-  private formatUserWithCars(user: any) {
-    return {
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      phoneNumber: user.phoneNumber,
-      phoneCode: user.phoneCode,
-      role: user.role,
-      createdAt: user.createdAt,
-      userCars: user.userCars?.map((car: any) => ({
-        id: car.id,
-        brand: car.brand,
-        model: car.model,
-        year: car.year,
-        publicId: car.publicId,
-        price: car.price,
-        mileage: car.mileage,
-        fuel: car.fuel,
-        transmission: car.transmission,
-        condition: car.condition,
-        color: car.color,
-        location: car.location,
-        city: car.city,
-        gearbox: car.gearbox,
-        viewcount: car.viewcount,
-        premiumExpiresAt: car.premiumExpiresAt,
-        status: car.status,
-        description: car.description,
-        features: car.features,
-        name: car.name,
-        SaleType: car.SaleType,
-        vinCode: car.vinCode,
-        allCarsListId: car.allCarsListId ?? car.allCar?.id ?? null,
-        phone: car.phone,
-        email: car.email,
-        createdAt: car.createdAt,
-        updatedAt: car.updatedAt,
-        images: car.images?.map((img: any) => ({ id: img.id, url: img.url })),
-      })),
-    };
-  }
-  async getUserWithCars(userId: number) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        userCars: {
-          orderBy: { createdAt: 'desc' },
-          include: {
-            images: true,
-            allCar: { include: { images: true } },
-          },
-        },
-      },
-    });
-
-    if (!user) throw new ForbiddenException('User not found');
-    return this.formatUserWithCars(user);
   }
 
   async getAllUsers(page = 1, limit = 10, search?: string) {
@@ -641,7 +316,6 @@ export class AuthService {
           { firstName: { contains: search, mode: "insensitive" } },
           { lastName: { contains: search, mode: "insensitive" } },
           { email: { contains: search, mode: "insensitive" } },
-          { phoneNumber: { contains: search, mode: "insensitive" } },
         ],
       }
       : {};
@@ -660,10 +334,7 @@ export class AuthService {
           createdAt: true,
           firstName: true,
           lastName: true,
-          phoneNumber: true,
-          phoneCode: true,
           role: true,
-          userCars: true,
         },
       }),
       this.prisma.user.count({ where: where as any }),
@@ -791,8 +462,6 @@ export class AuthService {
     if (dto.firstName !== undefined) allowed.firstName = dto.firstName;
     if (dto.lastName !== undefined) allowed.lastName = dto.lastName;
     if (dto.email !== undefined) allowed.email = dto.email;
-    if (dto.phoneNumber !== undefined) allowed.phoneNumber = dto.phoneNumber;
-    if (dto.phoneCode !== undefined) allowed.phoneCode = dto.phoneCode;
 
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
@@ -802,8 +471,6 @@ export class AuthService {
         email: true,
         firstName: true,
         lastName: true,
-        phoneNumber: true,
-        phoneCode: true,
         createdAt: true,
       },
     });
@@ -839,10 +506,7 @@ export class AuthService {
         firstName: true,
         lastName: true,
         role: true,
-        phoneNumber: true,
-        phoneCode: true,
         createdAt: true,
-        userCars: true
       },
     });
 
@@ -965,78 +629,12 @@ export class AuthService {
         pass: this.config.get('SMTP_PASS'),
       },
     });
-    const logoPath = join(process.cwd(), 'public', 'Logo', 'carvia.png');
+    const logoPath = join(process.cwd(), 'public', 'Logo', '');
     await transporter.sendMail({
-      from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
+      from: ` <${this.config.get('SMTP_USER')}>`,
       to,
       subject: 'Password Reset',
-      html: `
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
-    <tr>
-      <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
-           <tr>
-            <td style="padding: 48px 40px 32px; text-align: center; background: linear-gradient(360deg, #fafafa 0%, #e5e5e5 100%); border-radius: 16px 16px 0 0;">
- <div style="padding: 40px 30px; text-align: center;">
-        <h1 style="margin: 0; color: #000; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
-        <a href="https://carvia.pl/" target="_blank">
-          <img style="width: 130px;" src="https://api.carvia.pl/uploads/Logo.png" alt="Logo" />
-        </a>
-        </h1>
-      </div>
-              <h1 style="margin: 0; color: #000; font-size: 28px; font-weight: 700; line-height: 1.3;">Password Reset</h1>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 40px;">
-              <p style="margin: 0 0 24px; color: #374151; font-size: 16px; line-height: 1.6;">
-                Hello,
-              </p>
-              <p style="margin: 0 0 32px; color: #374151; font-size: 16px; line-height: 1.6;">
-                We received a request to reset your password. Click the button below to set a new password:
-              </p>
-              <table role="presentation" style="width: 100%; border-collapse: collapse;">
-                <tr>
-                  <td align="center" style="padding: 0;">
-                    <a href="${resetUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 16px 48px; border-radius: 12px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
-                      Reset Password
-                    </a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 0 40px 40px;">
-              <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px 20px; border-radius: 8px;">
-                <p style="margin: 0; color: #92400e; font-size: 14px; font-weight: 600; line-height: 1.6;">
-                  ⚠️ Important: This link is valid for 1 hour only.
-                </p>
-              </div>
-              
-              <p style="margin: 24px 0 0; color: #6b7280; font-size: 14px; line-height: 1.6;">
-                If you didn't request this password reset, please ignore this email. Your password will remain unchanged.
-              </p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 32px 40px; background-color: #f9fafb; border-radius: 0 0 16px 16px; border-top: 1px solid #e5e7eb;">
-              <p style="margin: 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.6;">
-                This is an automated message, please do not reply.
-              </p>
-              <p style="margin: 12px 0 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.6;">
-  © 2025 All rights reserved.
-                © ${new Date().getFullYear()} Carvia.pl | All rights reserved
-                              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-         `,
+      html: ``,
     });
   }
 

@@ -31,11 +31,6 @@ async function bootstrap() {
 
   // Allowed origins
   const allowedOrigins = [
-    'https://carvia-project.netlify.app',
-    'https://carvia.pl',
-    'http://carvia.pl',
-    'https://www.carvia.pl',
-    'http://www.carvia.pl',
     'http://localhost:3000'
   ];
 
