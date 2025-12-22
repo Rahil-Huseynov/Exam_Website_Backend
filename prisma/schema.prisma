@@ -65,8 +65,6 @@ model EmailVerification {
   hash        String
   firstName   String?
   lastName    String?
-  phoneCode   String?
-  phoneNumber String?
   role        String?
   code        String
   expires     DateTime
@@ -78,6 +76,7 @@ model EmailVerification {
 
 model University {
   id        String    @id @default(cuid())
+  logo      String
   name      String
   faculties Faculty[]
   createdAt DateTime  @default(now())

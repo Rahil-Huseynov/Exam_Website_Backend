@@ -32,11 +32,13 @@ import {
 } from "./dto";
 import { AuthGuard } from "@nestjs/passport";
 import { AdminGuard, JwtGuard } from "./guard";
+import { Public } from "./decorator/public.decorator";
 
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) { }
 
+  @Public()
   @UseInterceptors(AnyFilesInterceptor())
   @Post('user/signup')
   async userSignup(@Body(new ValidationPipe({ whitelist: true, transform: true })) dto: RegisterAuthDto) {

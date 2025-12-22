@@ -20,21 +20,15 @@ async function bootstrap() {
 
   const expressApp = app.getHttpAdapter().getInstance();
 
-  // Body parsers
   expressApp.use(express.json({ limit: '50mb' }));
   expressApp.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-  // Helmet + compression
   const helmet = (helmetImport as any).default ?? helmetImport;
   app.use((helmet as any)({ contentSecurityPolicy: false }));
   app.use(compression({ threshold: 0 }));
 
-  // Allowed origins
-  const allowedOrigins = [
-    'http://localhost:3000'
-  ];
+  const allowedOrigins = ['http://localhost:3000'];
 
-  // Enable CORS (ARRAY form, safer)
   app.enableCors({
     origin: allowedOrigins,
     credentials: true,
@@ -44,7 +38,6 @@ async function bootstrap() {
     optionsSuccessStatus: 204,
   });
 
-  // Rate limiter — skip OPTIONS requests
   const rateLimit = (rateLimitImport as any).default ?? rateLimitImport;
   app.set('trust proxy', 1);
   expressApp.use(
@@ -58,7 +51,6 @@ async function bootstrap() {
     }),
   );
 
-  // Static headers + CLI blocker
   expressApp.use((req, res, next) => {
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
@@ -73,10 +65,17 @@ async function bootstrap() {
     next();
   });
 
-  // Guards / interceptors / pipes
-  const configService = app.get(ConfigService);
-  app.useGlobalGuards(new ApiKeyGuard(configService));
+  app.setGlobalPrefix('api');
 
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
+
+  const configService = app.get(ConfigService);
   const cacheManager = app.get(CACHE_MANAGER);
   const reflector = app.get(Reflector);
   const prisma = app.get(PrismaService);
@@ -86,6 +85,8 @@ async function bootstrap() {
     new CustomCacheInterceptor(cacheManager, reflector, httpAdapterHost),
     new HttpLoggingInterceptor(prisma),
   );
+
+  app.useGlobalGuards(new ApiKeyGuard(configService, reflector));
 
   expressApp.use((req, res, next) => {
     if (req.method === 'OPTIONS') {
@@ -100,16 +101,6 @@ async function bootstrap() {
     }
     next();
   });
-
-
-  app.setGlobalPrefix('api');
-  app.useGlobalPipes(
-    new ValidationPipe({
-      transform: true,
-      whitelist: true,
-      forbidNonWhitelisted: true,
-    }),
-  );
 
   const port = process.env.PORT ? Number(process.env.PORT) : 3001;
   await app.listen(port, '0.0.0.0');
