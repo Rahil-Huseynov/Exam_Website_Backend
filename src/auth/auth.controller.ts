@@ -167,7 +167,11 @@ export class AuthController {
     if (!req.user?.id && !req.user?.sub) throw new ForbiddenException('User ID not found in token');
 
     const id = req.user?.sub ?? req.user?.id;
-    if (req.user?.isAdmin) return this.authService.getAdminById(id);
+    if (req.user?.isAdmin) {
+      return this.authService.getAdminById(id);
+    } else {
+      return this.authService.getUserById(id);
+    }
   }
 
   @UseGuards(JwtGuard)
