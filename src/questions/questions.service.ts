@@ -73,6 +73,38 @@ export class QuestionsService {
       },
     });
   }
+  
+  async updateSubject(
+    subjectId: string,
+    body: { name?: string; nameAz?: string; nameEn?: string; nameRu?: string },
+  ) {
+    const existing = await this.prisma.subject.findUnique({ where: { id: subjectId } })
+    if (!existing) throw new BadRequestException("Subject not found")
+
+    // name gəlirsə validate edək
+    if (body.name !== undefined) {
+      const nm = (body.name || "").trim()
+      if (!nm) throw new BadRequestException("Subject name is required")
+    }
+
+    return this.prisma.subject.update({
+      where: { id: subjectId },
+      data: {
+        ...(body.name !== undefined ? { name: body.name.trim() } : {}),
+        ...(body.nameAz !== undefined ? { nameAz: body.nameAz?.trim() || null } : {}),
+        ...(body.nameEn !== undefined ? { nameEn: body.nameEn?.trim() || null } : {}),
+        ...(body.nameRu !== undefined ? { nameRu: body.nameRu?.trim() || null } : {}),
+      },
+    })
+  }
+
+  async deleteSubject(subjectId: string) {
+    const existing = await this.prisma.subject.findUnique({ where: { id: subjectId } })
+    if (!existing) throw new BadRequestException("Subject not found")
+
+    await this.prisma.subject.delete({ where: { id: subjectId } })
+    return { ok: true }
+  }
 
   private async ensureAnyTopicForUniversity(universityId: string) {
     let anyTopic = await this.prisma.topic.findFirst();
