@@ -10,6 +10,7 @@ export function parseQuestionsFromText(raw: string): DraftQuestion[] {
   const qSplit = text.split(/\n(?=(?:Sual|Question)?\s*\d{1,3}\s*[.)-])/i);
 
   const drafts: DraftQuestion[] = [];
+  const base = Date.now();
   let qIndex = 0;
 
   for (const block of qSplit) {
@@ -25,10 +26,10 @@ export function parseQuestionsFromText(raw: string): DraftQuestion[] {
       .join(" ")
       .replace(/^(?:Sual|Question)?\s*\d{1,3}\s*[.)-]\s*/i, "")
       .trim();
-
     if (!qText) continue;
 
     const optionLines = lines.slice(optionStartIdx);
+
     const options: string[] = [];
     let current = "";
 
@@ -46,14 +47,18 @@ export function parseQuestionsFromText(raw: string): DraftQuestion[] {
     const cleaned = options.map((o) => o.replace(/\s+/g, " ").trim()).filter(Boolean);
     if (cleaned.length < 2) continue;
 
+    const tempId = `q_${base}_${qIndex}`;
+
     drafts.push({
-      tempId: `q_${Date.now()}_${qIndex++}`,
+      tempId,
       text: qText,
       options: cleaned.slice(0, 4).map((ot, i) => ({
-        tempOptionId: `o_${Date.now()}_${qIndex}_${i}`,
+        tempOptionId: `o_${base}_${qIndex}_${i}`,
         text: ot,
       })),
     });
+
+    qIndex++;
   }
 
   return drafts;

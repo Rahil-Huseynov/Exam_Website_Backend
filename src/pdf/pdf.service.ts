@@ -13,6 +13,9 @@ export class PdfService {
   async createImport(bankId: string, file: Express.Multer.File) {
     if (!file) throw new BadRequestException("PDF file is required");
 
+    const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } });
+    if (!bank) throw new BadRequestException("Exam/Bank not found");
+
     const rec = await this.prisma.pdfImport.create({
       data: {
         bankId,

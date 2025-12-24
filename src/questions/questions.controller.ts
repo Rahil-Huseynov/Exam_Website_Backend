@@ -1,54 +1,96 @@
-import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
-import { CommitQuestionsDto, CreateAttemptDto, AnswerDto } from "./dto";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from "@nestjs/common";
 import { QuestionsService } from "./questions.service";
-import { AttemptsService } from "./attempts.service";
+import { CreateExamDto } from "./dto/create-exam.dto";
+import { ImportQuestionsDirectDto } from "./dto/import-direct.dto";
+import { UpdateQuestionDto } from "./dto/update-question.dto";
+import { CreateQuestionDto } from "./dto/create-question.dto";
+
+@Controller("questions")
+export class QuestionsController {
+  constructor(private qs: QuestionsService) {}
+
+  @Get("universities")
+  async getUniversities() {
+    return this.qs.listUniversities();
+  }
+
+  @Post("university")
+  async createUniversity(
+    @Body()
+    body: { name: string; nameAz?: string; nameEn?: string; nameRu?: string; logo?: string | null },
+  ) {
+    return this.qs.createUniversity(body);
+  }
+
+  @Get("subjects")
+  async getSubjects() {
+    return this.qs.listSubjects();
+  }
+
+  @Post("subject")
+  async createSubject(@Body() body: { name: string; nameAz?: string; nameEn?: string; nameRu?: string }) {
+    return this.qs.createSubject(body);
+  }
+
+  @Get("exams")
+  async getExams(
+    @Query("universityId") universityId?: string,
+    @Query("subjectId") subjectId?: string,
+    @Query("year") year?: string,
+  ) {
+    return this.qs.getExams({
+      universityId,
+      subjectId,
+      year: year ? Number(year) : undefined,
+    });
+  }
+
+  @Post("exam")
+  async createExam(@Body() dto: CreateExamDto) {
+    return this.qs.createExam(dto);
+  }
+
+  @Get("exam/:examId")
+  async getExamQuestions(@Param("examId") examId: string) {
+    return this.qs.getExamQuestions(examId);
+  }
+
+  @Get("bank/:bankId/questions")
+  async listBankQuestions(@Param("bankId") bankId: string) {
+    return this.qs.listBankQuestions(bankId);
+  }
+
+  @Post("bank/:bankId/question")
+  async createQuestion(@Param("bankId") bankId: string, @Body() dto: CreateQuestionDto) {
+    return this.qs.createQuestion(bankId, dto);
+  }
+
+  @Post("bank/:bankId/questions")
+  async createQuestionAlias(@Param("bankId") bankId: string, @Body() dto: CreateQuestionDto) {
+    return this.qs.createQuestion(bankId, dto);
+  }
+
+  @Patch("question/:questionId")
+  async updateQuestion(@Param("questionId") questionId: string, @Body() dto: UpdateQuestionDto) {
+    return this.qs.updateQuestion(questionId, dto);
+  }
+
+  @Delete("question/:questionId")
+  async deleteQuestion(@Param("questionId") questionId: string) {
+    return this.qs.deleteQuestion(questionId);
+  }
+  @Delete("bank/:bankId")
+  async deleteBank(@Param("bankId") bankId: string) {
+    return this.qs.deleteBank(bankId);
+  }
+}
 
 @Controller()
-export class QuestionsController {
-  constructor(private qs: QuestionsService, private attempts: AttemptsService) {}
+export class BankQuestionsController {
+  constructor(private qs: QuestionsService) {}
 
-  @Post("banks/:bankId/questions/commit")
-  async commit(@Param("bankId") bankId: string, @Body() dto: CommitQuestionsDto) {
-    return this.qs.commit(bankId, dto);
-  }
-
-  @Get("banks/:bankId/questions")
-  async getQuiz(@Param("bankId") bankId: string, @Query("limit") limit?: string) {
-    const questions = await this.qs.getQuizQuestions(bankId, limit ? Number(limit) : 20);
-    return { questions };
-  }
-
-  @Post("banks/:bankId/attempts")
-  async createAttempt(@Param("bankId") bankId: string, @Body() dto: CreateAttemptDto) {
-    const attempt = await this.attempts.createAttempt(bankId, dto.userId);
-    return { attemptId: attempt.id };
-  }
-
-  @Post("attempts/:attemptId/answer")
-  async answer(@Param("attemptId") attemptId: string, @Body() dto: AnswerDto) {
-    return this.attempts.answer(attemptId, dto.questionId, dto.selectedOptionId);
-  }
-
-  @Post("attempts/:attemptId/finish")
-  async finish(@Param("attemptId") attemptId: string) {
-    const a = await this.attempts.finish(attemptId);
-    return { attemptId: a.id, status: a.status, score: a.score, total: a.total };
-  }
-
-  @Get("attempts/:attemptId/summary")
-  async summary(@Param("attemptId") attemptId: string) {
-    return this.attempts.summary(attemptId);
-  }
-
-  @Get("users/:userId/attempts")
-  async userAttempts(@Param("userId") userId: string) {
-    const attempts = await this.attempts.userAttempts(Number(userId));
-    return { attempts };
-  }
-
-  @Get("attempts/:attemptId/answers")
-  async attemptAnswers(@Param("attemptId") attemptId: string) {
-    const answers = await this.attempts.attemptAnswers(attemptId);
-    return { answers };
+  @Post("banks/:bankId/questions/import-direct")
+  async importDirect(@Param("bankId") bankId: string, @Body() dto: ImportQuestionsDirectDto) {
+    return this.qs.importQuestionsDirect(bankId, dto);
   }
 }

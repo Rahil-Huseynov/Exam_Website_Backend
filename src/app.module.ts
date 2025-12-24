@@ -1,6 +1,5 @@
 import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module';
-import { UserModule } from './user/user.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ConfigModule } from '@nestjs/config';
 import { AdminSeederModule } from './admin-seed/admin-seeder.module';
@@ -27,7 +26,7 @@ import { UsersModule } from './users/users.module';
       useClass: CustomCacheInterceptor,
     },
   ],
-  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, LogsModule, UserModule, AdminSeederModule, PrismaModule, PdfModule, QuestionsModule, UsersModule,
+  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, LogsModule, AdminSeederModule, PrismaModule, PdfModule, QuestionsModule, UsersModule,
 
   ServeStaticModule.forRoot({
     rootPath: join(__dirname, '..', 'uploads'),

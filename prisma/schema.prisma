@@ -33,19 +33,20 @@ model Log {
 }
 
 model User {
-  id                  Int                  @id @default(autoincrement())
-  email               String               @unique
-  hash                String
-  firstName           String?
-  lastName            String?
-  role                String?
-  isEmailVerified     Boolean              @default(false)
+  id              Int      @id @default(autoincrement())
+  email           String   @unique
+  hash            String
+  firstName       String?
+  lastName        String?
+  role            String?
+  isEmailVerified Boolean  @default(false)
 
-  balance             Int                  @default(0)
-  attempts            Attempt[]
+  balance  Int      @default(0)
+  attempts Attempt[]
 
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   passwordResetTokens PasswordResetToken[]
 
   @@map("users")
@@ -60,26 +61,43 @@ model PasswordResetToken {
 }
 
 model EmailVerification {
-  id          Int      @id @default(autoincrement())
-  email       String   @unique
-  hash        String
-  firstName   String?
-  lastName    String?
-  role        String?
-  code        String
-  expires     DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  hash      String
+  firstName String?
+  lastName  String?
+  role      String?
+  code      String
+  expires   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("email_verifications")
 }
 
 model University {
-  id        String    @id @default(cuid())
-  logo      String
-  name      String
+  id     String  @id @default(cuid())
+  logo   String?
+  name   String
+  nameAz String?
+  nameEn String?
+  nameRu String?
+
   faculties Faculty[]
-  createdAt DateTime  @default(now())
+  banks     QuestionBank[]
+
+  createdAt DateTime @default(now())
+}
+
+model Subject {
+  id     String  @id @default(cuid())
+  name   String
+  nameAz String?
+  nameEn String?
+  nameRu String?
+
+  banks     QuestionBank[]
+  createdAt DateTime @default(now())
 }
 
 model Faculty {
@@ -99,38 +117,37 @@ model Course {
 }
 
 model Topic {
-  id       String         @id @default(cuid())
+  id       String @id @default(cuid())
   title    String
   courseId String
-  course   Course         @relation(fields: [courseId], references: [id])
+  course   Course @relation(fields: [courseId], references: [id])
   banks    QuestionBank[]
 }
 
 model QuestionBank {
-  id        String      @id @default(cuid())
-  name      String
-  topicId   String
-  topic     Topic       @relation(fields: [topicId], references: [id])
+  id String @id @default(cuid())
+
+  title String
+  year  Int
+  price Decimal @db.Decimal(10, 2)
+
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  name    String
+  topicId String
+  topic   Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
   pdfFiles  PdfImport[]
   questions Question[]
   attempts  Attempt[]
 
-  createdAt DateTime    @default(now())
-}
+  createdAt DateTime @default(now())
 
-model PdfImport {
-  id            String       @id @default(cuid())
-  bankId        String
-  bank          QuestionBank @relation(fields: [bankId], references: [id])
-
-  originalName  String
-  storageKey    String
-  extractedText String?
-  status        PdfStatus    @default(PENDING)
-  createdAt     DateTime     @default(now())
-
-  questions     Question[]
+  @@index([universityId, subjectId, year])
 }
 
 enum PdfStatus {
@@ -139,49 +156,67 @@ enum PdfStatus {
   FAILED
 }
 
+model PdfImport {
+  id     String @id @default(cuid())
+  bankId String
+  bank   QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  originalName  String
+  storageKey    String
+  extractedText String?
+  status        PdfStatus @default(PENDING)
+  createdAt     DateTime  @default(now())
+
+  questions Question[]
+}
+
 model Question {
-  id          String       @id @default(cuid())
-  bankId      String
-  bank        QuestionBank @relation(fields: [bankId], references: [id])
+  id     String @id @default(cuid())
+  bankId String
+  bank   QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
 
   text        String
   explanation String?
-  difficulty  Int          @default(1)
+  difficulty  Int @default(1)
 
   correctOptionId   String?
-  correctOption     QuestionOption? @relation("CorrectOption", fields: [correctOptionId], references: [id])
+  correctOption     QuestionOption? @relation("CorrectOption", fields: [correctOptionId], references: [id], onDelete: SetNull)
   correctAnswerText String?
 
-  options       QuestionOption[]
-  sourcePdfId   String?
-  sourcePdf     PdfImport? @relation(fields: [sourcePdfId], references: [id])
+  options     QuestionOption[]
+  sourcePdfId String?
+  sourcePdf   PdfImport? @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
 
-  createdAt     DateTime   @default(now())
+  createdAt DateTime @default(now())
 
   attemptAnswers AttemptAnswer[]
 }
 
 model QuestionOption {
-  id         String   @id @default(cuid())
+  id         String @id @default(cuid())
   questionId String
-  question   Question @relation(fields: [questionId], references: [id])
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
   text       String
 
   correctForQuestions Question[] @relation("CorrectOption")
-
-  chosenInAnswers AttemptAnswer[]
+  chosenInAnswers     AttemptAnswer[]
 
   @@unique([questionId, text])
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  FINISHED
 }
 
 model Attempt {
   id String @id @default(cuid())
 
   userId Int
-  user   User @relation(fields: [userId], references: [id])
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   bankId String
-  bank   QuestionBank @relation(fields: [bankId], references: [id])
+  bank   QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
 
   status     AttemptStatus @default(IN_PROGRESS)
   startedAt  DateTime      @default(now())
@@ -192,21 +227,16 @@ model Attempt {
   answers AttemptAnswer[]
 }
 
-enum AttemptStatus {
-  IN_PROGRESS
-  FINISHED
-}
-
 model AttemptAnswer {
-  id        String  @id @default(cuid())
+  id        String @id @default(cuid())
   attemptId String
-  attempt   Attempt @relation(fields: [attemptId], references: [id])
+  attempt   Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
 
   questionId String
-  question   Question @relation(fields: [questionId], references: [id])
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   selectedOptionId String
-  selectedOption   QuestionOption @relation(fields: [selectedOptionId], references: [id])
+  selectedOption   QuestionOption @relation(fields: [selectedOptionId], references: [id], onDelete: Restrict)
 
   isCorrect Boolean
   createdAt DateTime @default(now())

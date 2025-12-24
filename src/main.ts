@@ -12,6 +12,7 @@ import * as helmetImport from 'helmet';
 import * as rateLimitImport from 'express-rate-limit';
 import * as express from 'express';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import * as cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -28,6 +29,8 @@ async function bootstrap() {
   app.use(compression({ threshold: 0 }));
 
   const allowedOrigins = ['http://localhost:3000'];
+
+  app.use(cookieParser());
 
   app.enableCors({
     origin: allowedOrigins,
