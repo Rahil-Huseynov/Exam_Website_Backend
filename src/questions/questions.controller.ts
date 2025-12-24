@@ -7,9 +7,8 @@ import { CreateQuestionDto } from "./dto/create-question.dto"
 
 @Controller("questions")
 export class QuestionsController {
-  constructor(private qs: QuestionsService) {}
+  constructor(private qs: QuestionsService) { }
 
-  // Universities
   @Get("universities")
   async getUniversities() {
     return this.qs.listUniversities()
@@ -23,7 +22,19 @@ export class QuestionsController {
     return this.qs.createUniversity(body)
   }
 
-  // Subjects
+  @Patch("university/:universityId")
+  async updateUniversity(
+    @Param("universityId") universityId: string,
+    @Body() body: { name?: string; nameAz?: string; nameEn?: string; nameRu?: string; logo?: string | null },
+  ) {
+    return this.qs.updateUniversity(universityId, body)
+  }
+
+  @Delete("university/:universityId")
+  async deleteUniversity(@Param("universityId") universityId: string) {
+    return this.qs.deleteUniversity(universityId)
+  }
+
   @Get("subjects")
   async getSubjects() {
     return this.qs.listSubjects()
@@ -34,7 +45,6 @@ export class QuestionsController {
     return this.qs.createSubject(body)
   }
 
-  // ✅ EDIT SUBJECT
   @Patch("subject/:subjectId")
   async updateSubject(
     @Param("subjectId") subjectId: string,
@@ -43,13 +53,11 @@ export class QuestionsController {
     return this.qs.updateSubject(subjectId, body)
   }
 
-  // ✅ DELETE SUBJECT
   @Delete("subject/:subjectId")
   async deleteSubject(@Param("subjectId") subjectId: string) {
     return this.qs.deleteSubject(subjectId)
   }
 
-  // Exams
   @Get("exams")
   async getExams(
     @Query("universityId") universityId?: string,
@@ -73,7 +81,6 @@ export class QuestionsController {
     return this.qs.getExamQuestions(examId)
   }
 
-  // Bank questions
   @Get("bank/:bankId/questions")
   async listBankQuestions(@Param("bankId") bankId: string) {
     return this.qs.listBankQuestions(bankId)
@@ -107,7 +114,7 @@ export class QuestionsController {
 
 @Controller()
 export class BankQuestionsController {
-  constructor(private qs: QuestionsService) {}
+  constructor(private qs: QuestionsService) { }
 
   @Post("banks/:bankId/questions/import-direct")
   async importDirect(@Param("bankId") bankId: string, @Body() dto: ImportQuestionsDirectDto) {

@@ -29,7 +29,7 @@ function normKey(s: string) {
 
 @Injectable()
 export class QuestionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async listUniversities() {
     return this.prisma.university.findMany({ orderBy: { createdAt: "desc" } });
@@ -56,6 +56,39 @@ export class QuestionsService {
     });
   }
 
+  async updateUniversity(
+    universityId: string,
+    body: { name?: string; nameAz?: string; nameEn?: string; nameRu?: string; logo?: string | null },
+  ) {
+    const existing = await this.prisma.university.findUnique({ where: { id: universityId } })
+    if (!existing) throw new BadRequestException("University not found")
+
+    if (body.name !== undefined) {
+      const nm = (body.name || "").trim()
+      if (!nm) throw new BadRequestException("University name is required")
+    }
+
+    return this.prisma.university.update({
+      where: { id: universityId },
+      data: {
+        ...(body.name !== undefined ? { name: body.name.trim() } : {}),
+        ...(body.nameAz !== undefined ? { nameAz: body.nameAz?.trim() || null } : {}),
+        ...(body.nameEn !== undefined ? { nameEn: body.nameEn?.trim() || null } : {}),
+        ...(body.nameRu !== undefined ? { nameRu: body.nameRu?.trim() || null } : {}),
+        ...(body.logo !== undefined ? { logo: body.logo?.trim() || null } : {}),
+      },
+    })
+  }
+
+  async deleteUniversity(universityId: string) {
+    const existing = await this.prisma.university.findUnique({ where: { id: universityId } })
+    if (!existing) throw new BadRequestException("University not found")
+    await this.prisma.university.delete({ where: { id: universityId } })
+    return { ok: true }
+  }
+
+
+
   async listSubjects() {
     return this.prisma.subject.findMany({ orderBy: { createdAt: "desc" } });
   }
@@ -73,7 +106,7 @@ export class QuestionsService {
       },
     });
   }
-  
+
   async updateSubject(
     subjectId: string,
     body: { name?: string; nameAz?: string; nameEn?: string; nameRu?: string },

@@ -104,7 +104,7 @@ model Faculty {
   id           String     @id @default(cuid())
   name         String
   universityId String
-  university   University @relation(fields: [universityId], references: [id])
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
   courses      Course[]
 }
 
@@ -112,7 +112,7 @@ model Course {
   id        String  @id @default(cuid())
   title     String
   facultyId String
-  faculty   Faculty @relation(fields: [facultyId], references: [id])
+  faculty   Faculty @relation(fields: [facultyId], references: [id], onDelete: Cascade)
   topics    Topic[]
 }
 
@@ -120,7 +120,7 @@ model Topic {
   id       String @id @default(cuid())
   title    String
   courseId String
-  course   Course @relation(fields: [courseId], references: [id])
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
   banks    QuestionBank[]
 }
 
@@ -236,7 +236,7 @@ model AttemptAnswer {
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   selectedOptionId String
-  selectedOption   QuestionOption @relation(fields: [selectedOptionId], references: [id], onDelete: Restrict)
+  selectedOption   QuestionOption @relation(fields: [selectedOptionId], references: [id], onDelete: Cascade)
 
   isCorrect Boolean
   createdAt DateTime @default(now())
