@@ -110,6 +110,10 @@ export class QuestionsController {
   async deleteBank(@Param("bankId") bankId: string) {
     return this.qs.deleteBank(bankId)
   }
+  @Get("years")
+  async getYears(@Query("universityId") universityId?: string) {
+    return this.qs.listExamYears({ universityId })
+  }
 }
 
 @Controller()

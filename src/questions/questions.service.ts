@@ -114,7 +114,6 @@ export class QuestionsService {
     const existing = await this.prisma.subject.findUnique({ where: { id: subjectId } })
     if (!existing) throw new BadRequestException("Subject not found")
 
-    // name gəlirsə validate edək
     if (body.name !== undefined) {
       const nm = (body.name || "").trim()
       if (!nm) throw new BadRequestException("Subject name is required")
@@ -539,4 +538,19 @@ export class QuestionsService {
     await this.prisma.questionBank.delete({ where: { id: bankId } });
     return { ok: true };
   }
+
+  async listExamYears({ universityId }: { universityId?: string }) {
+    if (!universityId) throw new BadRequestException("universityId is required")
+
+    const rows = await this.prisma.questionBank.findMany({
+      where: { universityId },
+      distinct: ["year"],
+      select: { year: true },
+      orderBy: { year: "desc" },
+    })
+
+    return { years: rows.map((r) => r.year).filter((y) => typeof y === "number") }
+  }
+
+
 }

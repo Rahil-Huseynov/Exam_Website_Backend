@@ -43,6 +43,10 @@ export class AttemptsService {
     });
     if (!attempt) throw new BadRequestException("Attempt not found");
 
+    if (attempt.status !== "IN_PROGRESS") {
+      return attempt;
+    }
+
     const total = attempt.answers.length;
     const correct = attempt.answers.filter((a) => a.isCorrect).length;
 
