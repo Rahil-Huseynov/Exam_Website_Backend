@@ -11,9 +11,9 @@ export class UsersController {
     return this.users.getBalance(Number(userId));
   }
 
-  @Patch(":userId/balance/add")
-  async add(@Param("userId") userId: string, @Body() dto: AddBalanceDto) {
-    const updated = await this.users.addBalance(Number(userId), dto.amount);
-    return { userId: updated.id, balance: updated.balance };
-  }
+  // @Patch(":userId/balance/add")
+  // async add(@Param("userId") userId: string, @Body() dto: AddBalanceDto) {
+  //   const updated = await this.users.addBalance(Number(userId), dto.amount);
+  //   return { userId: updated.id, balance: updated.balance };
+  // }
 }

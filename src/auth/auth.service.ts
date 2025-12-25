@@ -305,7 +305,7 @@ export class AuthService {
       html,
     });
   }
-  
+
   private async sendWelcomeEmail(to: string, name?: string) {
     const transporter = nodemailer.createTransport({
       host: this.config.get('SMTP_HOST'),
@@ -680,6 +680,7 @@ export class AuthService {
         lastName: true,
         role: true,
         createdAt: true,
+        balance: true,
       },
     });
 
@@ -687,8 +688,16 @@ export class AuthService {
       throw new ForbiddenException('User not found');
     }
 
-    return user;
+    // ✅ balance Decimal/string gələ bilər -> 2 rəqəm
+    const balanceNum = Number(user.balance);
+    const balanceFixed = Number.isFinite(balanceNum) ? balanceNum.toFixed(2) : "0.00";
+
+    return {
+      ...user,
+      balance: balanceFixed, // məsələn "5.00"
+    };
   }
+
 
   async getAdminById(adminId: number) {
     const admin = await this.prisma.admin.findUnique({

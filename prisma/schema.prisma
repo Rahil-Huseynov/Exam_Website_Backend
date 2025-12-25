@@ -41,7 +41,7 @@ model User {
   role            String?
   isEmailVerified Boolean  @default(false)
 
-  balance  Int      @default(0)
+  balance  Decimal @db.Decimal(10, 2) @default(0.00)
   attempts Attempt[]
   examTokens ExamToken[] 
 
@@ -227,6 +227,8 @@ model Attempt {
   total      Int           @default(0)
 
   answers AttemptAnswer[]
+  examToken ExamToken?
+
 }
 
 model AttemptAnswer {
@@ -259,6 +261,9 @@ model ExamToken {
   createdAt DateTime @default(now())
   expiresAt DateTime
   usedAt    DateTime?
+
+  attemptId String?  @unique
+  attempt   Attempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull)
 
   @@index([bankId, userId])
 }

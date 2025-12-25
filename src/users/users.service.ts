@@ -16,13 +16,13 @@ export class UsersService {
     return { userId: user.id, balance: user.balance };
   }
 
-  async addBalance(userId: number, amount: number) {
-    const user = await this.getUser(userId);
-    const updated = await this.prisma.user.update({
-      where: { id: user.id },
-      data: { balance: user.balance + amount },
-      select: { id: true, balance: true },
-    });
-    return updated;
-  }
+  // async addBalance(userId: number, amount: number) {
+  //   const user = await this.getUser(userId);
+  //   const updated = await this.prisma.user.update({
+  //     where: { id: user.id },
+  //     data: { balance: user.balance + amount },
+  //     select: { id: true, balance: true },
+  //   });
+  //   return updated;
+  // }
 }
