@@ -43,6 +43,7 @@ model User {
 
   balance  Int      @default(0)
   attempts Attempt[]
+  examTokens ExamToken[] 
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -144,6 +145,7 @@ model QuestionBank {
   pdfFiles  PdfImport[]
   questions Question[]
   attempts  Attempt[]
+  examTokens ExamToken[] 
 
   createdAt DateTime @default(now())
 
@@ -242,4 +244,21 @@ model AttemptAnswer {
   createdAt DateTime @default(now())
 
   @@unique([attemptId, questionId])
+}
+
+model ExamToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+
+  bankId    String
+  bank      QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  userId    Int
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  @@index([bankId, userId])
 }

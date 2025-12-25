@@ -1,17 +1,17 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from "@nestjs/common"
-import { QuestionsService } from "./questions.service"
-import { CreateExamDto } from "./dto/create-exam.dto"
-import { ImportQuestionsDirectDto } from "./dto/import-direct.dto"
-import { UpdateQuestionDto } from "./dto/update-question.dto"
-import { CreateQuestionDto } from "./dto/create-question.dto"
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, BadRequestException } from "@nestjs/common";
+import { QuestionsService } from "./questions.service";
+import { CreateExamDto } from "./dto/create-exam.dto";
+import { ImportQuestionsDirectDto } from "./dto/import-direct.dto";
+import { UpdateQuestionDto } from "./dto/update-question.dto";
+import { CreateQuestionDto } from "./dto/create-question.dto";
 
 @Controller("questions")
 export class QuestionsController {
-  constructor(private qs: QuestionsService) { }
+  constructor(private qs: QuestionsService) {}
 
   @Get("universities")
   async getUniversities() {
-    return this.qs.listUniversities()
+    return this.qs.listUniversities();
   }
 
   @Post("university")
@@ -19,7 +19,7 @@ export class QuestionsController {
     @Body()
     body: { name: string; nameAz?: string; nameEn?: string; nameRu?: string; logo?: string | null },
   ) {
-    return this.qs.createUniversity(body)
+    return this.qs.createUniversity(body);
   }
 
   @Patch("university/:universityId")
@@ -27,22 +27,22 @@ export class QuestionsController {
     @Param("universityId") universityId: string,
     @Body() body: { name?: string; nameAz?: string; nameEn?: string; nameRu?: string; logo?: string | null },
   ) {
-    return this.qs.updateUniversity(universityId, body)
+    return this.qs.updateUniversity(universityId, body);
   }
 
   @Delete("university/:universityId")
   async deleteUniversity(@Param("universityId") universityId: string) {
-    return this.qs.deleteUniversity(universityId)
+    return this.qs.deleteUniversity(universityId);
   }
 
   @Get("subjects")
   async getSubjects() {
-    return this.qs.listSubjects()
+    return this.qs.listSubjects();
   }
 
   @Post("subject")
   async createSubject(@Body() body: { name: string; nameAz?: string; nameEn?: string; nameRu?: string }) {
-    return this.qs.createSubject(body)
+    return this.qs.createSubject(body);
   }
 
   @Patch("subject/:subjectId")
@@ -50,12 +50,12 @@ export class QuestionsController {
     @Param("subjectId") subjectId: string,
     @Body() body: { name?: string; nameAz?: string; nameEn?: string; nameRu?: string },
   ) {
-    return this.qs.updateSubject(subjectId, body)
+    return this.qs.updateSubject(subjectId, body);
   }
 
   @Delete("subject/:subjectId")
   async deleteSubject(@Param("subjectId") subjectId: string) {
-    return this.qs.deleteSubject(subjectId)
+    return this.qs.deleteSubject(subjectId);
   }
 
   @Get("exams")
@@ -68,60 +68,61 @@ export class QuestionsController {
       universityId,
       subjectId,
       year: year ? Number(year) : undefined,
-    })
+    });
   }
 
   @Post("exam")
   async createExam(@Body() dto: CreateExamDto) {
-    return this.qs.createExam(dto)
+    return this.qs.createExam(dto);
   }
 
   @Get("exam/:examId")
   async getExamQuestions(@Param("examId") examId: string) {
-    return this.qs.getExamQuestions(examId)
+    throw new BadRequestException("Use /attempts/:attemptId/questions endpoint");
   }
 
   @Get("bank/:bankId/questions")
   async listBankQuestions(@Param("bankId") bankId: string) {
-    return this.qs.listBankQuestions(bankId)
+    return this.qs.listBankQuestions(bankId);
   }
 
   @Post("bank/:bankId/question")
   async createQuestion(@Param("bankId") bankId: string, @Body() dto: CreateQuestionDto) {
-    return this.qs.createQuestion(bankId, dto)
+    return this.qs.createQuestion(bankId, dto);
   }
 
   @Post("bank/:bankId/questions")
   async createQuestionAlias(@Param("bankId") bankId: string, @Body() dto: CreateQuestionDto) {
-    return this.qs.createQuestion(bankId, dto)
+    return this.qs.createQuestion(bankId, dto);
   }
 
   @Patch("question/:questionId")
   async updateQuestion(@Param("questionId") questionId: string, @Body() dto: UpdateQuestionDto) {
-    return this.qs.updateQuestion(questionId, dto)
+    return this.qs.updateQuestion(questionId, dto);
   }
 
   @Delete("question/:questionId")
   async deleteQuestion(@Param("questionId") questionId: string) {
-    return this.qs.deleteQuestion(questionId)
+    return this.qs.deleteQuestion(questionId);
   }
 
   @Delete("bank/:bankId")
   async deleteBank(@Param("bankId") bankId: string) {
-    return this.qs.deleteBank(bankId)
+    return this.qs.deleteBank(bankId);
   }
+
   @Get("years")
   async getYears(@Query("universityId") universityId?: string) {
-    return this.qs.listExamYears({ universityId })
+    return this.qs.listExamYears({ universityId });
   }
 }
 
 @Controller()
 export class BankQuestionsController {
-  constructor(private qs: QuestionsService) { }
+  constructor(private qs: QuestionsService) {}
 
   @Post("banks/:bankId/questions/import-direct")
   async importDirect(@Param("bankId") bankId: string, @Body() dto: ImportQuestionsDirectDto) {
-    return this.qs.importQuestionsDirect(bankId, dto)
+    return this.qs.importQuestionsDirect(bankId, dto);
   }
 }
