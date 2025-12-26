@@ -43,6 +43,28 @@ export class AuthService {
     });
   }
 
+  private genPublicId(length = 12) {
+    return randomBytes(length)
+      .toString("base64url")
+      .replace(/[^A-Z0-9]/gi, "")
+      .toUpperCase()
+      .slice(0, length)
+  }
+
+  private async generateUniquePublicId(length = 12) {
+    for (let i = 0; i < 10; i++) {
+      const publicId = this.genPublicId(length)
+
+      const exists = await this.prisma.user.findUnique({
+        where: { publicId },
+      })
+
+      if (!exists) return publicId
+    }
+
+    throw new BadRequestException("publicId yaratmaq alınmadı")
+  }
+
   async signToken(
     userId: number,
     email: string,
@@ -75,6 +97,7 @@ export class AuthService {
     if (!Number.isFinite(n)) return "0.00"
     return n.toFixed(2)
   }
+
 
   private async upsertEmailVerificationFromDto(dto: RegisterAuthDto) {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -381,6 +404,7 @@ export class AuthService {
             id: existingUser.id,
             email: existingUser.email,
             firstName: existingUser.firstName,
+            publicId: existingUser.publicId ?? null,
             lastName: existingUser.lastName,
             role: existingUser.role,
             createdAt: existingUser.createdAt,
@@ -388,6 +412,7 @@ export class AuthService {
         };
       }
 
+      const needPublicId = !existingUser.publicId
       user = await this.prisma.user.update({
         where: { email },
         data: {
@@ -396,6 +421,7 @@ export class AuthService {
           lastName: (record as any).lastName ?? existingUser.lastName,
           role: (record as any).role ?? existingUser.role,
           isEmailVerified: true,
+          ...(needPublicId ? { publicId: await this.generateUniquePublicId(16) } : {}),
         },
       });
     } else {
@@ -404,6 +430,7 @@ export class AuthService {
           email: (record as any).email,
           hash: (record as any).hash,
           firstName: (record as any).firstName ?? null,
+          publicId: await this.generateUniquePublicId(16),
           lastName: (record as any).lastName ?? null,
           role: (record as any).role ?? 'client',
           isEmailVerified: true,
@@ -428,6 +455,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         firstName: user.firstName,
+        publicId: user.publicId ?? null,
         lastName: user.lastName,
         role: user.role,
         createdAt: user.createdAt,
@@ -885,8 +913,8 @@ export class AuthService {
       ok: true,
       publicId: updated.publicId,
       added: Number(amount).toFixed(2),
-      oldBalance: this.normalizeMoney(oldBalance),  
-      newBalance: this.normalizeMoney(updated.balance), 
+      oldBalance: this.normalizeMoney(oldBalance),
+      newBalance: this.normalizeMoney(updated.balance),
       user: { ...updated, balance: this.normalizeMoney(updated.balance) },
     }
   }
