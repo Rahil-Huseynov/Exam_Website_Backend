@@ -19,4 +19,9 @@ export class CreateQuestionDto {
   @IsOptional()
   @IsString()
   correctAnswerText?: string;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
 }

@@ -35,10 +35,11 @@ import {
 import { AuthGuard } from "@nestjs/passport"
 import { AdminGuard, JwtGuard } from "./guard"
 import { Public } from "./decorator/public.decorator"
+import { AdminTopUpByPublicIdDto } from "./dto/admin-topup-by-publicid.dto"
 
 @Controller("auth")
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private authService: AuthService) { }
 
   @Public()
   @UseInterceptors(AnyFilesInterceptor())
@@ -195,4 +196,19 @@ export class AuthController {
     const newPassword = req.body["newPassword"]
     return this.authService.updatePassword(userId, currentPassword, newPassword)
   }
+
+  @UseGuards(AuthGuard("jwt"), AdminGuard)
+  @Post("admin/topup-by-publicid")
+  async topUpByPublicId(
+    @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: AdminTopUpByPublicIdDto,
+  ) {
+    return this.authService.adminTopUpByPublicId(dto.publicId, dto.amount)
+  }
+
+  @UseGuards(AuthGuard("jwt"), AdminGuard)
+  @Get("admin/user-by-publicid")
+  async getUserByPublicId(@Query("publicId") publicId: string) {
+    return this.authService.getUserByPublicIdPublic(publicId)
+  }
+
 }

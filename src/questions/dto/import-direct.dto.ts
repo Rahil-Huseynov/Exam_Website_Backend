@@ -19,6 +19,11 @@ class ImportDirectQuestionDto {
   @IsOptional()
   @IsString()
   correctAnswerText?: string;
+  
+  @IsOptional()
+  @IsString()
+  imageUrl?: string
+
 }
 
 export class ImportQuestionsDirectDto {
@@ -26,4 +31,9 @@ export class ImportQuestionsDirectDto {
   @ValidateNested({ each: true })
   @Type(() => ImportDirectQuestionDto)
   questions: ImportDirectQuestionDto[];
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string
+
 }

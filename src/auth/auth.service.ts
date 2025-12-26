@@ -70,6 +70,12 @@ export class AuthService {
     return this.prisma.user.findUnique({ where: { email } });
   }
 
+  private normalizeMoney(d: any) {
+    const n = Number(d)
+    if (!Number.isFinite(n)) return "0.00"
+    return n.toFixed(2)
+  }
+
   private async upsertEmailVerificationFromDto(dto: RegisterAuthDto) {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expires = new Date(Date.now() + 5 * 60 * 1000);
@@ -503,6 +509,7 @@ export class AuthService {
         },
         select: {
           id: true,
+          publicId: true,
           email: true,
           createdAt: true,
           firstName: true,
@@ -676,6 +683,7 @@ export class AuthService {
       select: {
         id: true,
         email: true,
+        publicId: true,
         firstName: true,
         lastName: true,
         role: true,
@@ -688,13 +696,12 @@ export class AuthService {
       throw new ForbiddenException('User not found');
     }
 
-    // ✅ balance Decimal/string gələ bilər -> 2 rəqəm
     const balanceNum = Number(user.balance);
     const balanceFixed = Number.isFinite(balanceNum) ? balanceNum.toFixed(2) : "0.00";
 
     return {
       ...user,
-      balance: balanceFixed, // məsələn "5.00"
+      balance: balanceFixed,
     };
   }
 
@@ -851,4 +858,61 @@ export class AuthService {
     });
     return { message: 'Şifrə uğurla yeniləndi' };
   }
+
+  async adminTopUpByPublicId(publicIdRaw: string, amountNum: number) {
+    const publicId = (publicIdRaw || "").trim().toUpperCase()
+    if (!publicId) throw new BadRequestException("publicId boş ola bilməz")
+
+    const amount = new Prisma.Decimal(amountNum)
+    if (amount.lte(0)) throw new BadRequestException("amount düzgün deyil")
+
+    const user = await this.prisma.user.findUnique({
+      where: { publicId } as any,
+      select: { id: true, publicId: true, email: true, firstName: true, lastName: true, balance: true },
+    })
+    if (!user) throw new BadRequestException("User tapılmadı")
+
+    const oldBalance = user.balance
+    const newBalance = (oldBalance as any).add(amount as any)
+
+    const updated = await this.prisma.user.update({
+      where: { publicId } as any,
+      data: { balance: newBalance },
+      select: { id: true, publicId: true, email: true, firstName: true, lastName: true, balance: true },
+    })
+
+    return {
+      ok: true,
+      publicId: updated.publicId,
+      added: Number(amount).toFixed(2),
+      oldBalance: this.normalizeMoney(oldBalance),  
+      newBalance: this.normalizeMoney(updated.balance), 
+      user: { ...updated, balance: this.normalizeMoney(updated.balance) },
+    }
+  }
+
+  async getUserByPublicIdPublic(publicIdRaw: string) {
+    const publicId = (publicIdRaw || "").trim().toUpperCase()
+    if (!publicId) throw new BadRequestException("publicId boş ola bilməz")
+
+    const user = await this.prisma.user.findUnique({
+      where: { publicId } as any,
+      select: {
+        id: true,
+        publicId: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        balance: true,
+        createdAt: true,
+      },
+    })
+    if (!user) throw new BadRequestException("User tapılmadı")
+
+    return {
+      ok: true,
+      user: { ...user, balance: this.normalizeMoney(user.balance) },
+    }
+  }
+
 }

@@ -34,6 +34,8 @@ model Log {
 
 model User {
   id              Int      @id @default(autoincrement())
+  publicId String? @unique
+
   email           String   @unique
   hash            String
   firstName       String?
@@ -42,16 +44,17 @@ model User {
   isEmailVerified Boolean  @default(false)
 
   balance  Decimal @db.Decimal(10, 2) @default(0.00)
+
   attempts Attempt[]
-  examTokens ExamToken[] 
+  examTokens ExamToken[]
+  passwordResetTokens PasswordResetToken[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  passwordResetTokens PasswordResetToken[]
-
   @@map("users")
 }
+
 
 model PasswordResetToken {
   token     String   @id
@@ -177,6 +180,7 @@ model Question {
   bankId String
   bank   QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
 
+  imageUrl String? @db.Text  
   text        String
   explanation String?
   difficulty  Int @default(1)

@@ -265,6 +265,7 @@ export class QuestionsService {
       questions: qs.map((q) => ({
         id: q.id,
         text: q.text,
+        imageUrl: q.imageUrl,
         correctAnswerText: q.correctAnswerText,
         correctOptionId: q.correctOptionId,
         options: q.options.map((o) => ({ id: o.id, text: o.text })),
@@ -273,39 +274,29 @@ export class QuestionsService {
   }
 
   async importQuestionsDirect(bankId: string, dto: ImportQuestionsDirectDto) {
-    const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } });
-    if (!bank) throw new BadRequestException("Exam/Bank not found");
+    const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } })
+    if (!bank) throw new BadRequestException("Bank not found")
 
-    const created = await this.prisma.$transaction(async (tx) => {
-      const result: { id: string }[] = [];
+    const qs = dto.questions || []
+    if (!qs.length) throw new BadRequestException("No questions")
 
-      for (const q of dto.questions) {
-        const qText = normText(q.text);
-        if (!qText) continue;
+    const createdCount = await this.prisma.$transaction(async (tx) => {
+      let count = 0
 
-        const correctText = normText(q.correctAnswerText || "");
+      for (const q of qs) {
+        const qText = (q.text || "").trim()
+        if (!qText) continue
 
-        const rawOptions = (q.options || []).map((o) => normText(o.text)).filter(Boolean);
-        if (rawOptions.length < 2) continue;
+        const optionsTexts = (q.options || [])
+          .map((o) => (o.text || "").trim())
+          .filter(Boolean)
 
-        const seen = new Set<string>();
-        const options: string[] = [];
-        for (const ot of rawOptions.slice(0, 5)) {
-          const k = normKey(ot);
-          if (seen.has(k)) continue;
-          seen.add(k);
-          options.push(ot);
-        }
-        if (options.length < 2) continue;
+        if (optionsTexts.length < 2) continue
 
-        let correctInOptions: string | null = null;
-        if (correctText) {
-          const found = options.find((ot) => normKey(ot) === normKey(correctText));
-          if (!found) {
-            throw new BadRequestException(`Correct answer not found in options: "${correctText}"`);
-          }
-          correctInOptions = found;
-        }
+        const correctInOptions =
+          q.correctAnswerText && optionsTexts.find((x) => x.trim() === q.correctAnswerText!.trim())
+            ? q.correctAnswerText!.trim()
+            : undefined
 
         const question = await tx.question.create({
           data: {
@@ -313,36 +304,77 @@ export class QuestionsService {
             text: qText,
             correctAnswerText: correctInOptions,
             correctOptionId: null,
+            imageUrl: q.imageUrl ? String(q.imageUrl) : null, 
           },
-        });
+        })
 
-        let correctOptionId: string | null = null;
-
-        for (const ot of options) {
-          const createdOpt = await tx.questionOption.create({
-            data: { questionId: question.id, text: ot },
-          });
-
-          if (correctInOptions && normKey(createdOpt.text) === normKey(correctInOptions)) {
-            correctOptionId = createdOpt.id;
-          }
+        for (const t of optionsTexts.slice(0, 5)) {
+          await tx.questionOption.create({
+            data: { questionId: question.id, text: t },
+          })
         }
 
-        if (correctOptionId) {
-          await tx.question.update({
-            where: { id: question.id },
-            data: { correctOptionId },
-          });
-        }
-
-        result.push({ id: question.id });
+        count++
       }
 
-      return result;
+      return count
+    })
+
+    return { ok: true, createdCount }
+  }
+
+    async updateBank(
+    bankId: string,
+    body: { title?: string; year?: number | string; price?: number | string },
+  ) {
+    const bank = await this.prisma.questionBank.findUnique({
+      where: { id: bankId },
+      include: { university: true, subject: true, _count: { select: { questions: true } } },
+    });
+    if (!bank) throw new BadRequestException("Exam/Bank not found");
+
+    const data: any = {};
+
+    if (body.title !== undefined) {
+      const title = (String(body.title || "") || "").trim();
+      if (!title) throw new BadRequestException("Title is required");
+      data.title = title;
+      data.name = title;
+    }
+
+    if (body.year !== undefined) {
+      const year = Number(body.year);
+      if (!Number.isInteger(year) || year < 1900 || year > 3000) {
+        throw new BadRequestException("Year is invalid");
+      }
+      data.year = year;
+    }
+
+    if (body.price !== undefined) {
+      const priceNumber = Number(body.price);
+      if (!Number.isFinite(priceNumber) || priceNumber < 0) {
+        throw new BadRequestException("Price is invalid");
+      }
+      data.price = new Prisma.Decimal(priceNumber);
+    }
+
+    const updated = await this.prisma.questionBank.update({
+      where: { id: bankId },
+      data,
+      include: { university: true, subject: true, _count: { select: { questions: true } } },
     });
 
-    return { count: created.length, questions: created };
+    return {
+      id: updated.id,
+      title: updated.title,
+      year: updated.year,
+      price: Number(updated.price),
+      questionCount: updated._count.questions,
+      university: updated.university,
+      subject: updated.subject,
+    };
   }
+
 
   async createQuestion(bankId: string, dto: CreateQuestionDto) {
     const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } });

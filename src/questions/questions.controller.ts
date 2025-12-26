@@ -7,7 +7,7 @@ import { CreateQuestionDto } from "./dto/create-question.dto";
 
 @Controller("questions")
 export class QuestionsController {
-  constructor(private qs: QuestionsService) {}
+  constructor(private qs: QuestionsService) { }
 
   @Get("universities")
   async getUniversities() {
@@ -20,6 +20,15 @@ export class QuestionsController {
     body: { name: string; nameAz?: string; nameEn?: string; nameRu?: string; logo?: string | null },
   ) {
     return this.qs.createUniversity(body);
+  }
+  
+  @Patch("bank/:bankId")
+  async updateBank(
+    @Param("bankId") bankId: string,
+    @Body()
+    body: { title?: string; year?: number | string; price?: number | string },
+  ) {
+    return this.qs.updateBank(bankId, body);
   }
 
   @Patch("university/:universityId")
@@ -119,7 +128,7 @@ export class QuestionsController {
 
 @Controller()
 export class BankQuestionsController {
-  constructor(private qs: QuestionsService) {}
+  constructor(private qs: QuestionsService) { }
 
   @Post("banks/:bankId/questions/import-direct")
   async importDirect(@Param("bankId") bankId: string, @Body() dto: ImportQuestionsDirectDto) {
