@@ -7,16 +7,20 @@ import { RevokeTokenDto } from "./dto/revoke-token.dto"
 
 @Controller()
 export class AttemptsController {
-  constructor(private readonly attempts: AttemptsService) {}
+  constructor(private readonly attempts: AttemptsService) { }
 
   @Get("users/:userId/attempts")
-  async userAttempts(@Param("userId") userId: string) {
+  async userAttempts(
+    @Param("userId") userId: string,
+    @Query("status") status?: "FINISHED" | "IN_PROGRESS",
+  ) {
     const uid = Number(userId)
     if (!userId || Number.isNaN(uid)) throw new BadRequestException("userId is required")
 
-    const attempts = await this.attempts.userAttempts(uid)
+    const attempts = await this.attempts.userAttempts(uid, status)
     return { attempts }
   }
+
 
   @Post("banks/:bankId/exam-token")
   async createExamToken(@Param("bankId") bankId: string, @Body() dto: CreateAttemptDto) {
@@ -39,7 +43,7 @@ export class AttemptsController {
 
     return {
       attemptId: result.attempt.id,
-      remainingBalance: result.remainingBalance, 
+      remainingBalance: result.remainingBalance,
     }
   }
 
@@ -82,7 +86,19 @@ export class AttemptsController {
   @Post("attempts/:attemptId/finish")
   async finish(@Param("attemptId") attemptId: string) {
     const row = await this.attempts.finish(attemptId)
-    return { attemptId: row.id, status: row.status, score: row.score, total: row.total }
+
+    return {
+      attemptId: row.attemptId,
+      status: row.status,
+      score: row.score,
+      total: row.total,
+      stats: {
+        answered: row.answered,
+        correct: row.correct,
+        wrong: row.wrong,
+        unanswered: row.unanswered,
+      },
+    }
   }
 
   @Get("attempts/:attemptId/summary")
@@ -94,5 +110,12 @@ export class AttemptsController {
   async answers(@Param("attemptId") attemptId: string) {
     const answers = await this.attempts.attemptAnswers(attemptId)
     return { answers }
+  }
+
+  @Get("attempts/:attemptId/review")
+  async review(@Param("attemptId") attemptId: string, @Query("userId") userId?: string) {
+    const uid = Number(userId)
+    if (!userId || Number.isNaN(uid)) throw new BadRequestException("userId is required")
+    return this.attempts.reviewAttempt(attemptId, uid)
   }
 }

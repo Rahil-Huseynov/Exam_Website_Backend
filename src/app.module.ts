@@ -11,7 +11,6 @@ import { HttpLoggingInterceptor } from './common/interceptors/http-logging.inter
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { CacheModule } from '@nestjs/cache-manager';
 import { CustomCacheInterceptor } from './common/interceptors/custom-cache.interceptor';
-import { PdfModule } from './pdf/pdf.module';
 import { QuestionsModule } from './questions/questions.module';
 import { UsersModule } from './users/users.module';
 import { AttemptsModule } from './attempts/attempts.module';
@@ -27,7 +26,7 @@ import { AttemptsModule } from './attempts/attempts.module';
       useClass: CustomCacheInterceptor,
     },
   ],
-  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, LogsModule, AdminSeederModule, PrismaModule, PdfModule, QuestionsModule, UsersModule,AttemptsModule,
+  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, LogsModule, AdminSeederModule, PrismaModule, QuestionsModule, UsersModule,AttemptsModule,
 
   ServeStaticModule.forRoot({
     rootPath: join(__dirname, '..', 'uploads'),
