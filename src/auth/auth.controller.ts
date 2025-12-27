@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -66,6 +67,22 @@ export class AuthController {
     @UploadedFiles() files: Express.Multer.File[],
   ) {
     return this.authService.adminSignup(dto)
+  }
+
+  @UseGuards(JwtGuard)
+  @Get("users/:userId/balance-history")
+  async balanceHistory(
+    @Param("userId") userId: string,
+    @Query("page") page = "1",
+    @Query("limit") limit = "50",
+  ) {
+    const uid = Number(userId)
+    if (!userId || Number.isNaN(uid)) throw new BadRequestException("userId is required")
+
+    const p = Math.max(1, Number(page) || 1)
+    const l = Math.min(200, Math.max(1, Number(limit) || 50))
+
+    return this.authService.getBalanceHistory(uid, p, l)
   }
 
   @Public()
@@ -201,8 +218,10 @@ export class AuthController {
   @Post("admin/topup-by-publicid")
   async topUpByPublicId(
     @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: AdminTopUpByPublicIdDto,
+    @Req() req,
   ) {
-    return this.authService.adminTopUpByPublicId(dto.publicId, dto.amount)
+    const adminId = Number(req.user?.sub ?? req.user?.id)
+    return this.authService.adminTopUpByPublicId(dto.publicId, dto.amount, adminId)
   }
 
   @UseGuards(AuthGuard("jwt"), AdminGuard)
@@ -210,5 +229,4 @@ export class AuthController {
   async getUserByPublicId(@Query("publicId") publicId: string) {
     return this.authService.getUserByPublicIdPublic(publicId)
   }
-
 }

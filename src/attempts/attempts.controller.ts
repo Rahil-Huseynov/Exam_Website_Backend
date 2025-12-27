@@ -1,13 +1,25 @@
-import { Body, Controller, Get, Param, Post, BadRequestException, Query } from "@nestjs/common"
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  BadRequestException,
+  Query,
+  Req,
+  UseGuards,
+} from "@nestjs/common"
 import { AttemptsService } from "./attempts.service"
 import { CreateAttemptDto } from "./dto/create-attempt.dto"
 import { AnswerDto } from "./dto/answer.dto"
 import { CreateAttemptWithTokenDto } from "./dto/create-attempt-with-token.dto"
 import { RevokeTokenDto } from "./dto/revoke-token.dto"
 
+import { JwtGuard } from "../auth/guard"
+
 @Controller()
 export class AttemptsController {
-  constructor(private readonly attempts: AttemptsService) { }
+  constructor(private readonly attempts: AttemptsService) {}
 
   @Get("users/:userId/attempts")
   async userAttempts(
@@ -20,7 +32,6 @@ export class AttemptsController {
     const attempts = await this.attempts.userAttempts(uid, status)
     return { attempts }
   }
-
 
   @Post("banks/:bankId/exam-token")
   async createExamToken(@Param("bankId") bankId: string, @Body() dto: CreateAttemptDto) {
@@ -117,5 +128,21 @@ export class AttemptsController {
     const uid = Number(userId)
     if (!userId || Number.isNaN(uid)) throw new BadRequestException("userId is required")
     return this.attempts.reviewAttempt(attemptId, uid)
+  }
+
+  @UseGuards(JwtGuard)
+  @Get("me/balance-history")
+  async myBalanceHistory(
+    @Req() req,
+    @Query("page") page = "1",
+    @Query("limit") limit = "20",
+  ) {
+    const userId = Number(req.user?.sub ?? req.user?.id)
+    if (!userId || Number.isNaN(userId)) throw new BadRequestException("userId not found in token")
+
+    const p = Math.max(1, parseInt(page, 10) || 1)
+    const l = Math.min(100, Math.max(1, parseInt(limit, 10) || 20))
+
+    return this.attempts.balanceHistory(userId, p, l)
   }
 }

@@ -98,7 +98,6 @@ export class AuthService {
     return n.toFixed(2)
   }
 
-
   private async upsertEmailVerificationFromDto(dto: RegisterAuthDto) {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expires = new Date(Date.now() + 5 * 60 * 1000);
@@ -462,6 +461,7 @@ export class AuthService {
       },
     };
   }
+
   async resendVerification(email: string) {
     const record = await this.prisma.emailVerification.findUnique({ where: { email } });
     if (!record) throw new BadRequestException('User not found or no pending verification');
@@ -733,7 +733,6 @@ export class AuthService {
     };
   }
 
-
   async getAdminById(adminId: number) {
     const admin = await this.prisma.admin.findUnique({
       where: { id: adminId },
@@ -867,6 +866,7 @@ export class AuthService {
     }
     return true;
   }
+
   async updatePassword(userId: number, currentPassword: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -887,37 +887,53 @@ export class AuthService {
     return { message: 'Şifrə uğurla yeniləndi' };
   }
 
-  async adminTopUpByPublicId(publicIdRaw: string, amountNum: number) {
+  async adminTopUpByPublicId(publicIdRaw: string, amountNum: number, adminId?: number) {
     const publicId = (publicIdRaw || "").trim().toUpperCase()
     if (!publicId) throw new BadRequestException("publicId boş ola bilməz")
 
     const amount = new Prisma.Decimal(amountNum)
     if (amount.lte(0)) throw new BadRequestException("amount düzgün deyil")
 
-    const user = await this.prisma.user.findUnique({
-      where: { publicId } as any,
-      select: { id: true, publicId: true, email: true, firstName: true, lastName: true, balance: true },
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { publicId } as any,
+        select: { id: true, publicId: true, email: true, firstName: true, lastName: true, balance: true },
+      })
+      if (!user) throw new BadRequestException("User tapılmadı")
+
+      const balanceBefore = new Prisma.Decimal(user.balance as any)
+      const balanceAfter = balanceBefore.add(amount).toDecimalPlaces(2)
+
+      const updated = await tx.user.update({
+        where: { publicId } as any,
+        data: { balance: balanceAfter },
+        select: { id: true, publicId: true, email: true, firstName: true, lastName: true, balance: true },
+      })
+
+      await tx.balanceTransaction.create({
+        data: {
+          userId: updated.id,
+          adminId: adminId ?? null,
+          amount: amount.toDecimalPlaces(2),
+          currency: "AZN",
+          type: "ADMIN_TOPUP",
+          note: `Admin topup (+${Number(amount).toFixed(2)} AZN)`,
+          balanceBefore: balanceBefore.toDecimalPlaces(2),
+          balanceAfter: balanceAfter.toDecimalPlaces(2),
+        },
+      })
+
+      return {
+        ok: true,
+        publicId: updated.publicId,
+        added: Number(amount).toFixed(2),
+        oldBalance: this.normalizeMoney(balanceBefore),
+        newBalance: this.normalizeMoney(balanceAfter),
+        user: { ...updated, balance: this.normalizeMoney(updated.balance) },
+      }
     })
-    if (!user) throw new BadRequestException("User tapılmadı")
-
-    const oldBalance = user.balance
-    const newBalance = (oldBalance as any).add(amount as any)
-
-    const updated = await this.prisma.user.update({
-      where: { publicId } as any,
-      data: { balance: newBalance },
-      select: { id: true, publicId: true, email: true, firstName: true, lastName: true, balance: true },
-    })
-
-    return {
-      ok: true,
-      publicId: updated.publicId,
-      added: Number(amount).toFixed(2),
-      oldBalance: this.normalizeMoney(oldBalance),
-      newBalance: this.normalizeMoney(updated.balance),
-      user: { ...updated, balance: this.normalizeMoney(updated.balance) },
-    }
   }
+
 
   async getUserByPublicIdPublic(publicIdRaw: string) {
     const publicId = (publicIdRaw || "").trim().toUpperCase()
@@ -943,4 +959,24 @@ export class AuthService {
     }
   }
 
+  async getBalanceHistory(userId: number, page = 1, limit = 50) {
+    const skip = (page - 1) * limit
+
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.balanceTransaction.count({ where: { userId } }),
+      this.prisma.balanceTransaction.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        include: {
+          bank: { select: { id: true, title: true, year: true, price: true } },
+          attempt: { select: { id: true, startedAt: true, finishedAt: true, status: true } },
+          admin: { select: { id: true, email: true, firstName: true, lastName: true, role: true } },
+        },
+      }),
+    ])
+
+    return { page, limit, total, items }
+  }
 }

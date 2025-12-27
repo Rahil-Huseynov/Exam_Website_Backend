@@ -17,6 +17,7 @@ model Admin {
   role      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  balanceTransactions BalanceTransaction[]
 }
 
 model Log {
@@ -48,6 +49,7 @@ model User {
   attempts Attempt[]
   examTokens ExamToken[]
   passwordResetTokens PasswordResetToken[]
+  balanceTransactions BalanceTransaction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -151,6 +153,7 @@ model QuestionBank {
   examTokens ExamToken[] 
 
   createdAt DateTime @default(now())
+  balanceTransactions BalanceTransaction[]
 
   @@index([universityId, subjectId, year])
 }
@@ -230,6 +233,7 @@ model Attempt {
   score      Int           @default(0)
   total      Int           @default(0)
 
+  balanceTransactions BalanceTransaction[]
   answers AttemptAnswer[]
   examToken ExamToken?
 
@@ -270,4 +274,43 @@ model ExamToken {
   attempt   Attempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull)
 
   @@index([bankId, userId])
+}
+
+
+enum BalanceTxType {
+  EXAM_DEBIT
+  ADMIN_TOPUP
+  MANUAL_ADJUSTMENT
+}
+
+model BalanceTransaction {
+  id        String   @id @default(cuid())
+
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  adminId   Int?
+  admin     Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  amount    Decimal  @db.Decimal(10, 2)
+  currency  String   @default("AZN")
+
+  type      BalanceTxType
+  note      String?
+
+  balanceBefore Decimal @db.Decimal(10, 2)
+  balanceAfter  Decimal @db.Decimal(10, 2)
+
+  attemptId String?
+  attempt   Attempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull)
+
+  bankId    String?
+  bank      QuestionBank? @relation(fields: [bankId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([bankId])
+  @@index([attemptId])
+  @@index([adminId])
 }

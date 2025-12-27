@@ -7,7 +7,7 @@ function shuffle<T>(arr: T[]) {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
-      ;[a[i], a[j]] = [a[j], a[i]]
+    ;[a[i], a[j]] = [a[j], a[i]]
   }
   return a
 }
@@ -29,7 +29,7 @@ function norm(s?: string | null) {
 
 @Injectable()
 export class AttemptsService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   private genToken() {
     return randomBytes(32).toString("hex")
@@ -71,6 +71,7 @@ export class AttemptsService {
       bank: a.bank,
     }))
   }
+
   async createOneTimeExamToken(bankId: string, userId: number, ttlMinutes = 10) {
     const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } })
     if (!bank) throw new BadRequestException("Bank not found")
@@ -92,6 +93,7 @@ export class AttemptsService {
 
     return { token, expiresAt }
   }
+
   async revokeToken(bankId: string, userId: number, token: string) {
     const now = new Date()
     const res = await this.prisma.examToken.updateMany({
@@ -118,7 +120,8 @@ export class AttemptsService {
       const user = await tx.user.findUnique({ where: { id: userId } })
       if (!user) throw new BadRequestException("User not found")
 
-      const existingAttempt = await tx.attempt.findFirst({
+
+        const existingAttempt = await tx.attempt.findFirst({
         where: { userId, bankId, status: "IN_PROGRESS" },
         orderBy: { startedAt: "desc" },
       })
@@ -161,9 +164,23 @@ export class AttemptsService {
         data: { balance: newBal },
       })
 
+      await tx.balanceTransaction.create({
+        data: {
+          userId,
+          bankId,
+          attemptId: attempt.id,
+          type: "EXAM_DEBIT",
+          amount: round2(price.mul(-1)),
+          balanceBefore: round2(bal),
+          balanceAfter: round2(newBal),
+          note: `Exam started: ${bank.title} (${bank.year})`,
+        },
+      })
+
       return { attempt, remainingBalance: newBal.toString() }
     })
   }
+
   async getAttemptQuestions(attemptId: string, userId: number) {
     const attempt = await this.prisma.attempt.findUnique({
       where: { id: attemptId },
@@ -197,6 +214,7 @@ export class AttemptsService {
       selectedOptionId: answeredMap.get(q.id)?.selectedOptionId ?? null,
     }))
   }
+
   async answer(attemptId: string, questionId: string, selectedOptionId: string) {
     const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } })
     if (!attempt) throw new BadRequestException("Attempt not found")
@@ -249,6 +267,7 @@ export class AttemptsService {
 
     return row
   }
+
   async finish(attemptId: string) {
     const attempt = await this.prisma.attempt.findUnique({
       where: { id: attemptId },
@@ -268,21 +287,21 @@ export class AttemptsService {
       where: { attemptId },
     })
 
-    const wrong = total - correct 
+    const wrong = answered - correct
     const unanswered = total - answered
 
     const row =
       attempt.status === "FINISHED"
         ? await this.prisma.attempt.findUnique({ where: { id: attemptId } })
         : await this.prisma.attempt.update({
-          where: { id: attemptId },
-          data: {
-            status: "FINISHED",
-            finishedAt: new Date(),
-            total,
-            score: correct,
-          },
-        })
+            where: { id: attemptId },
+            data: {
+              status: "FINISHED",
+              finishedAt: new Date(),
+              total,
+              score: correct,
+            },
+          })
 
     return {
       attemptId: row!.id,
@@ -310,6 +329,7 @@ export class AttemptsService {
       },
     })
     if (!attempt) throw new BadRequestException("Attempt not found")
+
     const total = await this.prisma.question.count({
       where: { bankId: attempt.bankId },
     })
@@ -320,7 +340,6 @@ export class AttemptsService {
     })
 
     const correct = answers.filter((a) => a.isCorrect).length
-
     const wrong = total - correct
 
     return {
@@ -338,7 +357,6 @@ export class AttemptsService {
       exam: attempt.bank,
     }
   }
-
 
   async attemptAnswers(attemptId: string) {
     return this.prisma.attemptAnswer.findMany({
@@ -413,7 +431,7 @@ export class AttemptsService {
           text: a.question.text,
           imageUrl: a.question.imageUrl,
           options: opts,
-          correctOptionId: resolvedCorrectOptionId,   
+          correctOptionId: resolvedCorrectOptionId,
           correctOptionText: resolvedCorrectOptionText,
         },
         selected: {
@@ -455,5 +473,64 @@ export class AttemptsService {
       where: { userId, status: "IN_PROGRESS" },
     })
     return res.count
+  }
+
+  async balanceHistory(userId: number, page = 1, limit = 20) {
+    const p = Math.max(1, Number(page) || 1)
+    const l = Math.min(100, Math.max(1, Number(limit) || 20))
+    const skip = (p - 1) * l
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.balanceTransaction.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: l,
+        include: {
+          bank: {
+            select: {
+              id: true,
+              title: true,
+              year: true,
+              price: true,
+              university: true,
+              subject: true,
+              topic: { include: { course: true } },
+            },
+          },
+          attempt: {
+            select: { id: true, status: true, startedAt: true, finishedAt: true, score: true, total: true },
+          },
+          admin: { select: { id: true, email: true, firstName: true, lastName: true, role: true } },
+        },
+      }),
+      this.prisma.balanceTransaction.count({ where: { userId } }),
+    ])
+
+    return {
+      page: p,
+      limit: l,
+      total,
+      totalPages: Math.ceil(total / l),
+      items: items.map((x) => ({
+        id: x.id,
+        type: x.type,
+        amount: x.amount.toString(),
+        balanceBefore: x.balanceBefore.toString(),
+        balanceAfter: x.balanceAfter.toString(),
+        note: x.note,
+        createdAt: x.createdAt,
+        bank: x.bank,
+        attempt: x.attempt,
+        admin: x.admin
+          ? {
+              id: x.admin.id,
+              email: x.admin.email,
+              name: `${x.admin.firstName ?? ""} ${x.admin.lastName ?? ""}`.trim(),
+              role: x.admin.role,
+            }
+          : null,
+      })),
+    }
   }
 }
