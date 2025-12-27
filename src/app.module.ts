@@ -14,6 +14,7 @@ import { CustomCacheInterceptor } from './common/interceptors/custom-cache.inter
 import { QuestionsModule } from './questions/questions.module';
 import { UsersModule } from './users/users.module';
 import { AttemptsModule } from './attempts/attempts.module';
+import { NewsModule } from './news/news.module';
 
 @Module({
   providers: [
@@ -26,7 +27,7 @@ import { AttemptsModule } from './attempts/attempts.module';
       useClass: CustomCacheInterceptor,
     },
   ],
-  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, LogsModule, AdminSeederModule, PrismaModule, QuestionsModule, UsersModule,AttemptsModule,
+  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, LogsModule, AdminSeederModule, PrismaModule, QuestionsModule, UsersModule,AttemptsModule,NewsModule,
 
   ServeStaticModule.forRoot({
     rootPath: join(__dirname, '..', 'uploads'),

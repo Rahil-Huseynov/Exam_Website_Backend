@@ -13,11 +13,17 @@ import * as rateLimitImport from 'express-rate-limit';
 import * as express from 'express';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as cookieParser from 'cookie-parser';
+import { join } from 'path';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'debug', 'log', 'verbose'],
   });
+
+  app.useStaticAssets(join(process.cwd(), "uploads"), {
+    prefix: "/uploads",
+  })
+
 
   const expressApp = app.getHttpAdapter().getInstance();
 
