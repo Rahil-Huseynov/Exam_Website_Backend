@@ -59,7 +59,7 @@
     "pdf-parse": "^2.4.5",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "sharp": "^0.34.4",
+    "sharp": "^0.34.5",
     "stream-json": "^1.9.1",
     "web-push": "^3.6.7"
   },
