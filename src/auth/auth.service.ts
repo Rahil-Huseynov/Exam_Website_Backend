@@ -141,198 +141,204 @@ export class AuthService {
     }
   }
 
-  private async sendVerificationEmail(to: string, code: string) {
-    const transporter = nodemailer.createTransport({
-      host: this.config.get('SMTP_HOST'),
-      port: +this.config.get('SMTP_PORT'),
-      secure: +this.config.get('SMTP_PORT') === 465,
-      auth: {
-        user: this.config.get('SMTP_USER'),
-        pass: this.config.get('SMTP_PASS'),
-      },
-    });
+ private async sendVerificationEmail(to: string, code: string) {
+  const transporter = nodemailer.createTransport({
+    host: this.config.get('SMTP_HOST'),
+    port: +this.config.get('SMTP_PORT'),
+    secure: +this.config.get('SMTP_PORT') === 465,
+    auth: {
+      user: this.config.get('SMTP_USER'),
+      pass: this.config.get('SMTP_PASS'),
+    },
+  });
 
-    const html = `
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-        background: linear-gradient(135deg, #f5f7fa 0%, #f0f4f8 100%);
-        padding: 40px 20px;
-        min-height: 100vh;
-      }
-      
-      .container {
-        max-width: 500px;
-        margin: 0 auto;
-        background: white;
-        border-radius: 16px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
-        overflow: hidden;
-      }
-      
-      .header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 40px 30px;
-        text-align: center;
-        color: white;
-      }
-      
-      .logo {
-         display:block;
-         margin: 0 auto 12px;
-         width: 140px;
-         max-width: 45%;
-         height: auto;
-       }
-      
-      .header h1 {
-        font-size: 28px;
-        font-weight: 700;
-        margin-bottom: 8px;
-        letter-spacing: -0.5px;
-      }
-      
-      .header p {
-        font-size: 14px;
-        opacity: 0.9;
-        font-weight: 500;
-      }
-      
-      .content {
-        padding: 40px 30px;
-        text-align: center;
-      }
-      
-      .intro {
-        font-size: 15px;
-        color: #666;
-        margin-bottom: 32px;
-        line-height: 1.6;
-      }
-      
-      .code-box {
-        background: linear-gradient(135deg, #f5f7fa 0%, #f0f4f8 100%);
-        border: 2px solid #e8eef7;
-        border-radius: 12px;
-        padding: 32px 24px;
-        margin-bottom: 32px;
-      }
-      
-      .code-label {
-        font-size: 12px;
-        color: #999;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 12px;
-        font-weight: 600;
-      }
-      
-      .code {
-        font-size: 36px;
-        font-weight: 700;
-        letter-spacing: 8px;
-        color: #667eea;
-        font-family: 'Courier New', monospace;
-        word-spacing: 12px;
-      }
-      
-      .validity {
-        font-size: 13px;
-        color: #999;
-        margin-bottom: 24px;
-        line-height: 1.6;
-      }
-      
-      .validity strong {
-        color: #667eea;
-        font-weight: 600;
-      }
-      
-      .warning {
-        background: #fef3f2;
-        border-left: 4px solid #f97066;
-        padding: 12px 16px;
-        border-radius: 6px;
-        font-size: 12px;
-        color: #7a2f2f;
-        text-align: left;
-        margin-top: 24px;
-      }
-      
-      .footer {
-        background: #f9fafb;
-        padding: 24px 30px;
-        text-align: center;
-        border-top: 1px solid #e5e7eb;
-      }
-      
-      .footer p {
-        font-size: 12px;
-        color: #999;
-      }
-      
-      .footer a {
-        color: #667eea;
-        text-decoration: none;
-      }
-      
-      .footer a:hover {
-        text-decoration: underline;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="header">
-        <div>
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #f0f4f8 100%);
+      padding: 40px 20px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 40px 30px;
+      text-align: center;
+      color: white;
+    }
+
+    .logo {
+      display: block;
+      margin: 0 auto 12px;
+      width: 140px;
+      max-width: 45%;
+      height: auto;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+
+    .header p {
+      font-size: 14px;
+      opacity: 0.9;
+      font-weight: 500;
+    }
+
+    .content {
+      padding: 40px 30px;
+      text-align: center;
+    }
+
+    .intro {
+      font-size: 15px;
+      color: #666;
+      margin-bottom: 32px;
+      line-height: 1.6;
+    }
+
+    .code-box {
+      background: linear-gradient(135deg, #f5f7fa 0%, #f0f4f8 100%);
+      border: 2px solid #e8eef7;
+      border-radius: 12px;
+      padding: 32px 24px;
+      margin-bottom: 32px;
+    }
+
+    .code-label {
+      font-size: 12px;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .code {
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: 8px;
+      color: #667eea;
+      font-family: 'Courier New', monospace;
+      word-spacing: 12px;
+    }
+
+    .validity {
+      font-size: 13px;
+      color: #999;
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+
+    .validity strong {
+      color: #667eea;
+      font-weight: 600;
+    }
+
+    .warning {
+      background: #fef3f2;
+      border-left: 4px solid #f97066;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #7a2f2f;
+      text-align: left;
+      margin-top: 24px;
+    }
+
+    .footer {
+      background: #f9fafb;
+      padding: 24px 30px;
+      text-align: center;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .footer p {
+      font-size: 12px;
+      color: #999;
+    }
+
+    .footer a {
+      color: #667eea;
+      text-decoration: none;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
       <a href="https://carvia.pl/" target="_blank">
-    <img class="logo" src="https://api.carvia.pl/uploads/Logo.png" alt="logo" />
+        <img class="logo" src="https://api.carvia.pl/uploads/Logo.png" alt="İmtahanVer.net loqosu" />
       </a>
-        </div>
-        <h1>Email Verification</h1>
-        <p>Secure your account</p>
+      <h1>E-poçtun təsdiqlənməsi</h1>
+      <p>Hesabınızın təhlükəsizliyini təmin edin</p>
+    </div>
+
+    <div class="content">
+      <p class="intro">
+        Qeydiyyatı tamamlamaq və e-poçt ünvanınızı təsdiqləmək üçün aşağıdakı doğrulama kodunu daxil edin.
+      </p>
+
+      <div class="code-box">
+        <div class="code-label">Sizin kod</div>
+        <div class="code">${code}</div>
       </div>
-      
-      <div class="content">
-        <p class="intro">Enter the verification code below to confirm your email address and complete your registration.</p>
-        
-        <div class="code-box">
-          <div class="code-label">Your Code</div>
-          <div class="code">${code}</div>
-        </div>
-        
-        <p class="validity">This code is valid for <strong>5 minutes</strong>. Please enter it in your browser window.</p>
-        
-        <div class="warning">
-          <strong>Didn't request this?</strong> If you didn't sign up for Carvia.pl, you can safely ignore this email.
-        </div>
-      </div>
-      
-      <div class="footer">
-        <p>© ${new Date().getFullYear()} <strong>Carvia.pl</strong> • <a href="#">Privacy Policy</a></p>
+
+      <p class="validity">
+        Bu kod <strong>5 dəqiqə</strong> ərzində etibarlıdır.
+        Zəhmət olmasa onu brauzer pəncərəsində daxil edin.
+      </p>
+
+      <div class="warning">
+        <strong>Siz bu sorğunu etməmisiniz?</strong>
+        Əgər ImtahanVer.net platformasında qeydiyyatdan keçməmisinizsə,
+        bu e-poçtu təhlükəsiz şəkildə nəzərə almaya bilərsiniz.
       </div>
     </div>
-  </body>
-  </html>
+
+    <div class="footer">
+      <p>
+        © ${new Date().getFullYear()} <strong>ImtahanVer.net</strong> •
+        <a href="#">Məxfilik Siyasəti</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>
 `;
-    await transporter.sendMail({
-      from: `"Carvia.pl" <${this.config.get('SMTP_USER')}>`,
-      to,
-      subject: 'Your verification code',
-      html,
-    });
-  }
+
+  await transporter.sendMail({
+    from: `"ImtahanVer.net" <${this.config.get('SMTP_USER')}>`,
+    to,
+    subject: 'Doğrulama kodunuz',
+    html,
+  });
+}
+
 
   private async sendWelcomeEmail(to: string, name?: string) {
     const transporter = nodemailer.createTransport({
@@ -346,13 +352,102 @@ export class AuthService {
     });
 
     const safeName = name ?? 'User';
-    const html = ``;
+   const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #f0f4f8 100%);
+      padding: 40px 20px;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 36px 28px;
+      text-align: center;
+      color: white;
+    }
+    .logo { display:block; margin: 0 auto 12px; width:140px; max-width:45%; height:auto; }
+    .header h1 { font-size: 26px; font-weight:700; margin-bottom:6px; }
+    .header p { font-size:14px; opacity:0.95; margin-top:4px; }
+    .content { padding: 36px 30px; text-align: left; color:#374151; line-height:1.6; }
+    .greeting { font-size:18px; font-weight:700; margin-bottom:12px; color:#111827; }
+    .message { font-size:15px; margin-bottom:20px; color:#4b5563; }
+    .cta-wrap { text-align:center; margin: 18px 0; color:white }
+    .cta {
+      display:inline-block;
+      background: linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+      color:#fff; text-decoration:none;
+      padding:12px 36px; border-radius:10px; font-weight:600;
+    }
+    .note { font-size:13px; color:#9ca3af; text-align:center; margin-top:18px; }
+    .footer { background:#f9fafb; padding:20px 30px; text-align:center; border-top:1px solid #e5e7eb; color:#9ca3af; font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <a href="https://carvia.pl/" target="_blank" rel="noreferrer">
+        <img class="logo" src="https://api.carvia.pl/uploads/Logo.png" alt="İmtahanVer.net loqosu" />
+      </a>
+      <h1>ImtahanVer.net-ə xoş gəlmisiniz</h1>
+      <p>Hesabınız aktivləşdirildi</p>
+    </div>
+
+    <div class="content">
+      <div class="greeting">Salam ${safeName},</div>
+      <div class="message">
+        ImtahanVer.net platformasına qoşulduğunuz üçün təşəkkür edirik!
+        Hesabınız uğurla aktivləşdirildi.
+        Artıq sistemə daxil olaraq imtahanlarda iştirak edə bilərsiniz.
+      </div>
+
+      <div class="cta-wrap" style="color:white">
+        <a class="cta" style="color:white" href="https://www.carvia.pl/" target="_blank" rel="noreferrer">
+          İmtahanVer.net-dən keç
+        </a>
+      </div>
+
+      <div class="message">
+        Əgər bu e-poçt ünvanı ilə hesab yaratmamısınızsa, zəhmət olmasa dəstək komandamızla əlaqə saxlayın
+        və ya bu mesajı nəzərə almayın.
+      </div>
+
+      <div class="note">
+        © ${new Date().getFullYear()} ImtahanVer.net • 
+        <a target="_blank" href="https://www.carvia.pl/privacy" style="color:inherit; text-decoration:underline;">
+          Məxfilik Siyasəti
+        </a>
+      </div>
+    </div>
+
+    <div class="footer">
+      Bu avtomatik göndərilən mesajdır — cavab verməyin.
+    </div>
+  </div>
+</body>
+</html>
+`;
+
 
     try {
       await transporter.sendMail({
-        from: ` <${this.config.get('SMTP_USER')}>`,
+        from: `"ImtahanVer.net" <${this.config.get('SMTP_USER')}>`,
         to,
-        subject: 'Welcome to ... — Account activated',
+        subject: 'ImtahanVer.net-ə xoş gəldiniz — Hesabınız təsdiqləndi',
         html,
       });
     } catch (err) {
@@ -804,7 +899,7 @@ export class AuthService {
     });
 
     const baseUrl = this.config.get('FRONTEND_URL');
-    const resetUrl = `${baseUrl}/auth/reset-password?token=${token}`;
+    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
     await this.sendResetEmail(user.email, resetUrl);
 
@@ -836,23 +931,96 @@ export class AuthService {
   }
 
   private async sendResetEmail(to: string, resetUrl: string) {
-    const transporter = nodemailer.createTransport({
-      host: this.config.get('SMTP_HOST'),
-      port: +this.config.get('SMTP_PORT'),
-      secure: +this.config.get('SMTP_PORT') === 465,
-      auth: {
-        user: this.config.get('SMTP_USER'),
-        pass: this.config.get('SMTP_PASS'),
-      },
-    });
-    const logoPath = join(process.cwd(), 'public', 'Logo', '');
-    await transporter.sendMail({
-      from: ` <${this.config.get('SMTP_USER')}>`,
-      to,
-      subject: 'Password Reset',
-      html: ``,
-    });
-  }
+  const transporter = nodemailer.createTransport({
+    host: this.config.get('SMTP_HOST'),
+    port: +this.config.get('SMTP_PORT'),
+    secure: +this.config.get('SMTP_PORT') === 465,
+    auth: {
+      user: this.config.get('SMTP_USER'),
+      pass: this.config.get('SMTP_PASS'),
+    },
+  });
+
+  await transporter.sendMail({
+    from: `"ImtahanVer.net" <${this.config.get('SMTP_USER')}>`,
+    to,
+    subject: 'Şifrənin sıfırlanması',
+    html: `
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
+          <tr>
+            <td style="padding: 48px 40px 32px; text-align: center; background: linear-gradient(360deg, #fafafa 0%, #e5e5e5 100%); border-radius: 16px 16px 0 0;">
+              <div style="padding: 40px 30px; text-align: center;">
+                <a href="https://carvia.pl/" target="_blank">
+                  <img style="width: 130px;" src="https://api.carvia.pl/uploads/Logo.png" alt="İmtahanVer.net loqosu" />
+                </a>
+              </div>
+              <h1 style="margin: 0; color: #000; font-size: 28px; font-weight: 700; line-height: 1.3;">
+                Şifrənin sıfırlanması
+              </h1>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 40px;">
+              <p style="margin: 0 0 24px; color: #374151; font-size: 16px; line-height: 1.6;">
+                Salam,
+              </p>
+              <p style="margin: 0 0 32px; color: #374151; font-size: 16px; line-height: 1.6;">
+                Hesabınız üçün şifrənin sıfırlanması ilə bağlı sorğu aldıq.
+                Yeni şifrə təyin etmək üçün aşağıdakı düyməyə klikləyin:
+              </p>
+
+              <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td align="center">
+                    <a href="${resetUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 16px 48px; border-radius: 12px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);">
+                      Şifrəni sıfırla
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 0 40px 40px;">
+              <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px 20px; border-radius: 8px;">
+                <p style="margin: 0; color: #92400e; font-size: 14px; font-weight: 600; line-height: 1.6;">
+                  ⚠️ Vacib: Bu link yalnız 1 saat müddətində etibarlıdır.
+                </p>
+              </div>
+
+              <p style="margin: 24px 0 0; color: #6b7280; font-size: 14px; line-height: 1.6;">
+                Əgər şifrənin sıfırlanması üçün sorğu etməmisinizsə, bu e-poçtu nəzərə almayın.
+                Şifrəniz dəyişdirilməyəcək.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 32px 40px; background-color: #f9fafb; border-radius: 0 0 16px 16px; border-top: 1px solid #e5e7eb;">
+              <p style="margin: 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.6;">
+                Bu avtomatik göndərilən mesajdır — cavab verməyin.
+              </p>
+              <p style="margin: 12px 0 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.6;">
+                © ${new Date().getFullYear()} ImtahanVer.net • Bütün hüquqlar qorunur
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+    `,
+  });
+}
+
 
   async checkToken(token: string) {
     const tokenRecord = await this.prisma.passwordResetToken.findUnique({
