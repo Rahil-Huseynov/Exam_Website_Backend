@@ -111,7 +111,7 @@ async function bootstrap() {
     next();
   });
 
-  const port = process.env.PORT ? Number(process.env.PORT) : 3001;
+  const port = process.env.PORT ? Number(process.env.PORT) : 3002;
   await app.listen(port, '0.0.0.0');
   console.log(`✅ Server running on http://0.0.0.0:${port}`);
 }

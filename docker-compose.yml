@@ -4,7 +4,7 @@ services:
   db:
     image: postgres:13
     ports:
-      - "5435:5432"
+      - "5435:5432"   # host:container
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 123
@@ -18,6 +18,8 @@ services:
     image: postgres:13
     depends_on:
       - db
+    ports:
+      - "5436:5432"   # ayrıca host port (istəsən silə bilərsən)
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 123
@@ -25,36 +27,36 @@ services:
     networks:
       - freecodecamp
     volumes:
-      - /mnt/Disk_1TB/Backup:/backups         
-      - ./uploads:/uploads                    
-      - db_data:/var/lib/postgresql/data_r    
+      - /mnt/Disk_256GB/Backup:/backups
+      - ./uploads:/uploads
+      - db_data:/var/lib/postgresql/data_r
     command: >
       bash -c '
-        echo "Backup servisi ba?lad?";
+        echo "Backup servisi başladıldı";
         mkdir -p /backups;
         while true; do
           TS=$$(date +%Y%m%d_%H%M%S);
           DUMP_FILE=db_$$TS.sql;
           ARCHIVE_FILE=backup_$$TS.tar.gz;
 
-          echo "Postgres dump haz?rlan?r...";
+          echo "Postgres dump hazırlanır...";
           PGPASSWORD=$$POSTGRES_PASSWORD pg_dump \
             -h db \
             -U $$POSTGRES_USER \
             $$POSTGRES_DB > /backups/$$DUMP_FILE;
 
-          echo "DB dump + uploads + raw data arxivl?nir...";
+          echo "DB dump + uploads + raw data arxivlənir...";
           tar -czf /backups/$$ARCHIVE_FILE \
             -C /backups $$DUMP_FILE \
-            -C / uploads \
+            -C /uploads . \
             -C /var/lib/postgresql data_r;
 
           rm /backups/$$DUMP_FILE;
 
-          echo "3 g�nd?n k�hn? backup-lar silinir...";
+          echo "3 gündən köhnə backup-lar silinir...";
           find /backups -type f -name "backup_*.tar.gz" -mtime +3 -delete;
 
-          echo "N�vb?ti backup 24 saat sonra...";
+          echo "Növbəti backup 24 saat sonra...";
           sleep 86400;
         done
       '
