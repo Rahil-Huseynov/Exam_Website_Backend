@@ -29,7 +29,7 @@ export class EmailsService {
     return {
       siteName: "ImtahanVer.net",
       siteUrl: this.config.get<string>("APP_URL") || "https://imtahanver.net",
-      logoUrl: this.config.get<string>("BRAND_LOGO_URL") || "https://api.imtahanver.net/uploads/Logo.png",
+      logoUrl: this.config.get<string>("BRAND_LOGO_URL") || "http://217.64.24.9:3002/uploads/Logo.png",
       supportEmail: this.config.get<string>("CONTACT_TO_EMAIL") || "info@imtahanver.net",
     }
   }
