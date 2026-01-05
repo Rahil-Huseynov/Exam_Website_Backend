@@ -37,7 +37,7 @@ services:
     networks:
       - project2_net
     volumes:
-      - /mnt/Disk_256GB/Backup:/backups   # f?rqli qovluq (qar??mas?n)
+      - /mnt/DISK_1TB/Backup/ExamWebsite:/backups         
       - ./uploads:/uploads:ro
       - project2_pgdata:/var/lib/postgresql/data:ro
     command: >
