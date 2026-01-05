@@ -12,7 +12,7 @@ import {
 } from './dto';
 import { randomBytes } from 'crypto';
 import * as nodemailer from 'nodemailer';
-import { Prisma } from 'generated/prisma';
+import { Prisma } from '@prisma/client'
 import * as cron from 'node-cron';
 import { join } from 'path';
 

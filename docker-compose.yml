@@ -1,68 +1,83 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  db:
+  pg_main2:
     image: postgres:13
+    container_name: project2_pg_main2
+    restart: unless-stopped
     ports:
-      - "5435:5432"   # host:container
+      - "5545:5432"   # ba?qa layih?d?n f?rqli port
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 123
+      POSTGRES_PASSWORD: "123"
       POSTGRES_DB: nest
     networks:
-      - freecodecamp
+      - project2_net
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - project2_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nest"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
-  db-backup:
+  pg_backup2:
     image: postgres:13
+    container_name: project2_pg_backup2
+    restart: unless-stopped
     depends_on:
-      - db
-    ports:
-      - "5436:5432"   # ayrıca host port (istəsən silə bilərsən)
+      pg_main2:
+        condition: service_healthy
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 123
+      POSTGRES_PASSWORD: "123"
       POSTGRES_DB: nest
+      BACKUP_KEEP_DAYS: "3"
+      BACKUP_INTERVAL_SECONDS: "86400"
     networks:
-      - freecodecamp
+      - project2_net
     volumes:
-      - /mnt/Disk_256GB/Backup:/backups
-      - ./uploads:/uploads
-      - db_data:/var/lib/postgresql/data_r
+      - /mnt/Disk_256GB/Backup:/backups   # f?rqli qovluq (qar??mas?n)
+      - ./uploads:/uploads:ro
+      - project2_pgdata:/var/lib/postgresql/data:ro
     command: >
-      bash -c '
-        echo "Backup servisi başladıldı";
+      bash -lc '
+        set -e;
+
+        echo "[project2-backup] started";
         mkdir -p /backups;
+
         while true; do
           TS=$$(date +%Y%m%d_%H%M%S);
-          DUMP_FILE=db_$$TS.sql;
-          ARCHIVE_FILE=backup_$$TS.tar.gz;
+          DUMP="/backups/nest_$${TS}.sql";
+          ARCH="/backups/project2_backup_$${TS}.tar.gz";
 
-          echo "Postgres dump hazırlanır...";
-          PGPASSWORD=$$POSTGRES_PASSWORD pg_dump \
-            -h db \
-            -U $$POSTGRES_USER \
-            $$POSTGRES_DB > /backups/$$DUMP_FILE;
+          echo "[project2-backup] pg_dump -> $$DUMP";
+          PGPASSWORD="$${POSTGRES_PASSWORD}" pg_dump \
+            -h pg_main2 \
+            -U "$${POSTGRES_USER}" \
+            -d "$${POSTGRES_DB}" > "$$DUMP";
 
-          echo "DB dump + uploads + raw data arxivlənir...";
-          tar -czf /backups/$$ARCHIVE_FILE \
-            -C /backups $$DUMP_FILE \
+          echo "[project2-backup] pack -> $$ARCH";
+          tar -czf "$$ARCH" \
+            -C /backups "$$(basename "$$DUMP")" \
             -C /uploads . \
-            -C /var/lib/postgresql data_r;
+            -C /var/lib/postgresql/data .;
 
-          rm /backups/$$DUMP_FILE;
+          rm -f "$$DUMP";
 
-          echo "3 gündən köhnə backup-lar silinir...";
-          find /backups -type f -name "backup_*.tar.gz" -mtime +3 -delete;
+          echo "[project2-backup] cleanup older than $${BACKUP_KEEP_DAYS} days";
+          find /backups -type f -name "project2_backup_*.tar.gz" -mtime +$${BACKUP_KEEP_DAYS} -delete || true;
 
-          echo "Növbəti backup 24 saat sonra...";
-          sleep 86400;
+          echo "[project2-backup] sleeping $${BACKUP_INTERVAL_SECONDS}s";
+          sleep "$${BACKUP_INTERVAL_SECONDS}";
         done
       '
 
 networks:
-  freecodecamp:
+  project2_net:
+    name: project2_net
 
 volumes:
-  db_data:
+  project2_pgdata:
+    name: project2_pgdata

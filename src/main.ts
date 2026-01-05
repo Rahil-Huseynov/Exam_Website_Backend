@@ -34,7 +34,7 @@ async function bootstrap() {
   app.use((helmet as any)({ contentSecurityPolicy: false }));
   app.use(compression({ threshold: 0 }));
 
-  const allowedOrigins = ['http://localhost:3000'];
+  const allowedOrigins = ["http://localhost:3000", "http://217.64.24.9:3003"]
 
   app.use(cookieParser());
 
