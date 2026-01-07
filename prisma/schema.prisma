@@ -9,16 +9,16 @@ datasource db {
 }
 
 model Admin {
-  id        Int      @id @default(autoincrement())
-  firstName String?
-  lastName  String?
-  email     String   @unique
-  hash      String
-  role      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  Int                  @id @default(autoincrement())
+  firstName           String?
+  lastName            String?
+  email               String               @unique
+  hash                String
+  role                String
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
   balanceTransactions BalanceTransaction[]
-  news               News[] 
+  news                News[]
 }
 
 model News {
@@ -28,13 +28,13 @@ model News {
   titleEn String?
   titleRu String?
 
-  contentAz String @db.Text
+  contentAz String  @db.Text
   contentEn String? @db.Text
   contentRu String? @db.Text
 
   imageUrl String? @db.Text
 
-  isPublished Boolean  @default(false)
+  isPublished Boolean   @default(false)
   publishedAt DateTime?
 
   adminId Int?
@@ -45,7 +45,6 @@ model News {
 
   @@index([isPublished, publishedAt])
 }
-
 
 model Log {
   id        Int      @id @default(autoincrement())
@@ -61,20 +60,20 @@ model Log {
 }
 
 model User {
-  id              Int      @id @default(autoincrement())
+  id       Int     @id @default(autoincrement())
   publicId String? @unique
 
-  email           String   @unique
+  email           String  @unique
   hash            String
   firstName       String?
   lastName        String?
   role            String?
-  isEmailVerified Boolean  @default(false)
+  isEmailVerified Boolean @default(false)
 
-  balance  Decimal @db.Decimal(10, 2) @default(0.00)
+  balance Decimal @default(0.00) @db.Decimal(10, 2)
 
-  attempts Attempt[]
-  examTokens ExamToken[]
+  attempts            Attempt[]
+  examTokens          ExamToken[]
   passwordResetTokens PasswordResetToken[]
   balanceTransactions BalanceTransaction[]
 
@@ -83,7 +82,6 @@ model User {
 
   @@map("users")
 }
-
 
 model PasswordResetToken {
   token     String   @id
@@ -130,7 +128,7 @@ model Subject {
   nameRu String?
 
   banks     QuestionBank[]
-  createdAt DateTime @default(now())
+  createdAt DateTime       @default(now())
 }
 
 model Faculty {
@@ -150,10 +148,10 @@ model Course {
 }
 
 model Topic {
-  id       String @id @default(cuid())
+  id       String         @id @default(cuid())
   title    String
   courseId String
-  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course   Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
   banks    QuestionBank[]
 }
 
@@ -172,14 +170,14 @@ model QuestionBank {
 
   name    String
   topicId String
-  topic   Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  topic   Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
-  pdfFiles  PdfImport[]
-  questions Question[]
-  attempts  Attempt[]
-  examTokens ExamToken[] 
+  pdfFiles   PdfImport[]
+  questions  Question[]
+  attempts   Attempt[]
+  examTokens ExamToken[]
 
-  createdAt DateTime @default(now())
+  createdAt           DateTime             @default(now())
   balanceTransactions BalanceTransaction[]
 
   @@index([universityId, subjectId, year])
@@ -192,7 +190,7 @@ enum PdfStatus {
 }
 
 model PdfImport {
-  id     String @id @default(cuid())
+  id     String       @id @default(cuid())
   bankId String
   bank   QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
 
@@ -206,35 +204,65 @@ model PdfImport {
 }
 
 model Question {
-  id     String @id @default(cuid())
+  id     String       @id @default(cuid())
   bankId String
   bank   QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
 
-  imageUrl String? @db.Text  
   text        String
   explanation String?
-  difficulty  Int @default(1)
+  difficulty  Int     @default(1)
 
   correctOptionId   String?
   correctOption     QuestionOption? @relation("CorrectOption", fields: [correctOptionId], references: [id], onDelete: SetNull)
   correctAnswerText String?
 
-  options     QuestionOption[]
+  options QuestionOption[]
+  images  QuestionImage[]
+
   sourcePdfId String?
   sourcePdf   PdfImport? @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
 
+  createdAt        DateTime          @default(now())
+  attemptQuestions AttemptQuestion[]
+  attemptAnswers   AttemptAnswer[]
+}
+
+model AttemptQuestion {
+  id         String   @id @default(cuid())
+  attemptId  String
+  questionId String
+  order      Int
+  createdAt  DateTime @default(now())
+
+  attempt  Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+}
+
+model QuestionImage {
+  id         String   @id @default(cuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  url     String @db.Text
+  urlHash String @db.VarChar(64)
+
+  sort      Int      @default(0)
   createdAt DateTime @default(now())
 
-  attemptAnswers AttemptAnswer[]
+  @@unique([questionId, urlHash])
+  @@index([questionId])
 }
 
 model QuestionOption {
-  id         String @id @default(cuid())
+  id         String   @id @default(cuid())
   questionId String
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
   text       String
 
-  correctForQuestions Question[] @relation("CorrectOption")
+  correctForQuestions Question[]      @relation("CorrectOption")
   chosenInAnswers     AttemptAnswer[]
 
   @@unique([questionId, text])
@@ -261,13 +289,13 @@ model Attempt {
   total      Int           @default(0)
 
   balanceTransactions BalanceTransaction[]
-  answers AttemptAnswer[]
-  examToken ExamToken?
-
+  attemptQuestions    AttemptQuestion[]
+  answers             AttemptAnswer[]
+  examToken           ExamToken?
 }
 
 model AttemptAnswer {
-  id        String @id @default(cuid())
+  id        String  @id @default(cuid())
   attemptId String
   attempt   Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
 
@@ -284,16 +312,16 @@ model AttemptAnswer {
 }
 
 model ExamToken {
-  id        String   @id @default(cuid())
-  token     String   @unique
+  id    String @id @default(cuid())
+  token String @unique
 
-  bankId    String
-  bank      QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  bankId String
+  bank   QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
 
-  userId    Int
-  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   expiresAt DateTime
   usedAt    DateTime?
 
@@ -303,7 +331,6 @@ model ExamToken {
   @@index([bankId, userId])
 }
 
-
 enum BalanceTxType {
   EXAM_DEBIT
   ADMIN_TOPUP
@@ -311,19 +338,19 @@ enum BalanceTxType {
 }
 
 model BalanceTransaction {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  adminId   Int?
-  admin     Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  adminId Int?
+  admin   Admin? @relation(fields: [adminId], references: [id], onDelete: SetNull)
 
-  amount    Decimal  @db.Decimal(10, 2)
-  currency  String   @default("AZN")
+  amount   Decimal @db.Decimal(10, 2)
+  currency String  @default("AZN")
 
-  type      BalanceTxType
-  note      String?
+  type BalanceTxType
+  note String?
 
   balanceBefore Decimal @db.Decimal(10, 2)
   balanceAfter  Decimal @db.Decimal(10, 2)
@@ -331,8 +358,8 @@ model BalanceTransaction {
   attemptId String?
   attempt   Attempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull)
 
-  bankId    String?
-  bank      QuestionBank? @relation(fields: [bankId], references: [id], onDelete: SetNull)
+  bankId String?
+  bank   QuestionBank? @relation(fields: [bankId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 

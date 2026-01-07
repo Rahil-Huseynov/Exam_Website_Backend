@@ -9,9 +9,10 @@ import {
   Query,
   BadRequestException,
   UploadedFile,
+  UploadedFiles,
   UseInterceptors,
 } from "@nestjs/common"
-import { FileInterceptor } from "@nestjs/platform-express"
+import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express"
 import { diskStorage } from "multer"
 import * as path from "path"
 import * as fs from "fs"
@@ -31,10 +32,27 @@ function safeExt(originalname: string) {
   return allowed.includes(ext) ? ext : ""
 }
 
+function makeImageStorage(subdir: string) {
+  return diskStorage({
+    destination: (req, file, cb) => {
+      const dir = path.join(process.cwd(), "uploads", subdir)
+      ensureDir(dir)
+      cb(null, dir)
+    },
+    filename: (req, file, cb) => {
+      const ext = safeExt(file.originalname)
+      if (!ext) return cb(new Error("Invalid file type"), "")
+      const rnd = Math.random().toString(16).slice(2)
+      cb(null, `${Date.now()}-${rnd}${ext}`)
+    },
+  })
+}
+
 @Controller("questions")
 export class QuestionsController {
   constructor(private qs: QuestionsService) {}
 
+  // ---------------- Universities ----------------
   @Get("universities")
   async getUniversities() {
     return this.qs.listUniversities()
@@ -42,33 +60,15 @@ export class QuestionsController {
 
   @Post("university")
   async createUniversity(
-    @Body()
-    body: { name: string; nameAz?: string; nameEn?: string; nameRu?: string; logo?: string | null },
+    @Body() body: { name: string; nameAz?: string; nameEn?: string; nameRu?: string; logo?: string | null },
   ) {
     return this.qs.createUniversity(body)
   }
 
-  /**
-   * Logo upload endpoint
-   * form-data:
-   *   key: file   (type: file)
-   */
   @Post("university/:universityId/logo")
   @UseInterceptors(
     FileInterceptor("file", {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          const dir = path.join(process.cwd(), "uploads", "university")
-          ensureDir(dir)
-          cb(null, dir)
-        },
-        filename: (req, file, cb) => {
-          const ext = safeExt(file.originalname)
-          if (!ext) return cb(new Error("Invalid file type"), "")
-          const rnd = Math.random().toString(16).slice(2)
-          cb(null, `${Date.now()}-${rnd}${ext}`)
-        },
-      }),
+      storage: makeImageStorage("university"),
       fileFilter: (req, file, cb) => {
         const ext = safeExt(file.originalname)
         if (!ext) return cb(new Error("Only png/jpg/jpeg/webp/svg allowed"), false)
@@ -81,15 +81,6 @@ export class QuestionsController {
     if (!file) throw new BadRequestException("Logo file is required")
     const publicPath = `/uploads/university/${file.filename}`
     return this.qs.setUniversityLogo(universityId, publicPath)
-  }
-
-  @Patch("bank/:bankId")
-  async updateBank(
-    @Param("bankId") bankId: string,
-    @Body()
-    body: { title?: string; year?: number | string; price?: number | string },
-  ) {
-    return this.qs.updateBank(bankId, body)
   }
 
   @Patch("university/:universityId")
@@ -105,6 +96,7 @@ export class QuestionsController {
     return this.qs.deleteUniversity(universityId)
   }
 
+  // ---------------- Subjects ----------------
   @Get("subjects")
   async getSubjects() {
     return this.qs.listSubjects()
@@ -128,6 +120,7 @@ export class QuestionsController {
     return this.qs.deleteSubject(subjectId)
   }
 
+  // ---------------- Exams / Banks ----------------
   @Get("exams")
   async getExams(
     @Query("universityId") universityId?: string,
@@ -146,9 +139,17 @@ export class QuestionsController {
     return this.qs.createExam(dto)
   }
 
-  @Get("exam/:examId")
-  async getExamQuestions(@Param("examId") examId: string) {
-    throw new BadRequestException("Use /attempts/:attemptId/questions endpoint")
+  @Patch("bank/:bankId")
+  async updateBank(
+    @Param("bankId") bankId: string,
+    @Body() body: { title?: string; year?: number | string; price?: number | string },
+  ) {
+    return this.qs.updateBank(bankId, body)
+  }
+
+  @Delete("bank/:bankId")
+  async deleteBank(@Param("bankId") bankId: string) {
+    return this.qs.deleteBank(bankId)
   }
 
   @Get("bank/:bankId/questions")
@@ -156,14 +157,15 @@ export class QuestionsController {
     return this.qs.listBankQuestions(bankId)
   }
 
+  // ---------------- Questions CRUD ----------------
   @Post("bank/:bankId/question")
   async createQuestion(@Param("bankId") bankId: string, @Body() dto: CreateQuestionDto) {
-    return this.qs.createQuestion(bankId, dto)
+    return this.qs.createQuestion(bankId, dto as any)
   }
 
   @Post("bank/:bankId/questions")
   async createQuestionAlias(@Param("bankId") bankId: string, @Body() dto: CreateQuestionDto) {
-    return this.qs.createQuestion(bankId, dto)
+    return this.qs.createQuestion(bankId, dto as any)
   }
 
   @Patch("question/:questionId")
@@ -176,11 +178,30 @@ export class QuestionsController {
     return this.qs.deleteQuestion(questionId)
   }
 
-  @Delete("bank/:bankId")
-  async deleteBank(@Param("bankId") bankId: string) {
-    return this.qs.deleteBank(bankId)
+  @Post("question/:questionId/images")
+  @UseInterceptors(
+    FilesInterceptor("files", 20, {
+      storage: makeImageStorage("question"),
+      fileFilter: (req, file, cb) => {
+        const ext = safeExt(file.originalname)
+        if (!ext) return cb(new Error("Only png/jpg/jpeg/webp/svg allowed"), false)
+        cb(null, true)
+      },
+      limits: { fileSize: 8 * 1024 * 1024 }, 
+    }),
+  )
+  async uploadQuestionImages(@Param("questionId") questionId: string, @UploadedFiles() files?: Express.Multer.File[]) {
+    if (!files || files.length === 0) throw new BadRequestException("At least 1 image is required")
+    const publicUrls = files.map((f) => `/uploads/question/${f.filename}`)
+    return this.qs.addQuestionImages(questionId, publicUrls)
   }
 
+  @Delete("question-image/:imageId")
+  async deleteQuestionImage(@Param("imageId") imageId: string) {
+    return this.qs.deleteQuestionImage(imageId)
+  }
+
+  // ---------------- Years ----------------
   @Get("years")
   async getYears(@Query("universityId") universityId?: string) {
     return this.qs.listExamYears({ universityId })

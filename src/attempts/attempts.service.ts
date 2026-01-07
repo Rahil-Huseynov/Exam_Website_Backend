@@ -7,7 +7,7 @@ function shuffle<T>(arr: T[]) {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
-    ;[a[i], a[j]] = [a[j], a[i]]
+      ;[a[i], a[j]] = [a[j], a[i]]
   }
   return a
 }
@@ -29,7 +29,7 @@ function norm(s?: string | null) {
 
 @Injectable()
 export class AttemptsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   private genToken() {
     return randomBytes(32).toString("hex")
@@ -121,7 +121,7 @@ export class AttemptsService {
       if (!user) throw new BadRequestException("User not found")
 
 
-        const existingAttempt = await tx.attempt.findFirst({
+      const existingAttempt = await tx.attempt.findFirst({
         where: { userId, bankId, status: "IN_PROGRESS" },
         orderBy: { startedAt: "desc" },
       })
@@ -182,38 +182,83 @@ export class AttemptsService {
   }
 
   async getAttemptQuestions(attemptId: string, userId: number) {
-    const attempt = await this.prisma.attempt.findUnique({
-      where: { id: attemptId },
-    })
+    const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } })
     if (!attempt) throw new BadRequestException("Attempt not found")
     if (attempt.userId !== userId) throw new BadRequestException("Attempt does not belong to user")
 
-    const questions = await this.prisma.question.findMany({
-      where: { bankId: attempt.bankId },
-      orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        text: true,
-        imageUrl: true,
-        options: { select: { id: true, text: true } },
+    const existing = await this.prisma.attemptQuestion.findMany({
+      where: { attemptId },
+      orderBy: { order: "asc" },
+      include: {
+        question: {
+          select: {
+            id: true,
+            text: true,
+            images: { select: { url: true, sort: true } },
+            options: { select: { id: true, text: true } },
+          },
+        },
       },
     })
 
-    if (!questions.length) throw new BadRequestException("No questions found for this exam")
+    let questions: Array<{
+      id: string
+      text: string
+      images: { url: string; sort: number }[]
+      options: { id: string; text: string }[]
+    }> = []
+
+    if (existing.length === 0) {
+      const questionsAll = await this.prisma.question.findMany({
+        where: { bankId: attempt.bankId },
+        select: {
+          id: true,
+          text: true,
+          images: { select: { url: true, sort: true } },
+          options: { select: { id: true, text: true } },
+        },
+      })
+
+      if (questionsAll.length < 25) {
+        throw new BadRequestException("Not enough questions in this exam (need at least 25)")
+      }
+
+      const picked = shuffle(questionsAll).slice(0, 25)
+
+      await this.prisma.attemptQuestion.createMany({
+        data: picked.map((q, idx) => ({
+          attemptId,
+          questionId: q.id,
+          order: idx + 1,
+        })),
+        skipDuplicates: true,
+      })
+
+      questions = picked
+    } else {
+      questions = existing.map((x) => x.question)
+      if (questions.length < 25) {
+        throw new BadRequestException("Attempt question set is incomplete")
+      }
+      questions = questions.slice(0, 25)
+    }
 
     const answers = await this.prisma.attemptAnswer.findMany({
       where: { attemptId },
-      select: { questionId: true, selectedOptionId: true, isCorrect: true },
+      select: { questionId: true, selectedOptionId: true },
     })
-
     const answeredMap = new Map(answers.map((a) => [a.questionId, a]))
 
     return questions.map((q) => ({
-      ...q,
+      id: q.id,
+      text: q.text,
+      images: q.images,
+      options: q.options,
       answered: answeredMap.has(q.id),
       selectedOptionId: answeredMap.get(q.id)?.selectedOptionId ?? null,
     }))
   }
+
 
   async answer(attemptId: string, questionId: string, selectedOptionId: string) {
     const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } })
@@ -275,9 +320,7 @@ export class AttemptsService {
     })
     if (!attempt) throw new BadRequestException("Attempt not found")
 
-    const total = await this.prisma.question.count({
-      where: { bankId: attempt.bankId },
-    })
+    const total = 25
 
     const correct = await this.prisma.attemptAnswer.count({
       where: { attemptId, isCorrect: true },
@@ -287,21 +330,21 @@ export class AttemptsService {
       where: { attemptId },
     })
 
-    const wrong = answered - correct
+    const wrong = total - correct
     const unanswered = total - answered
 
     const row =
       attempt.status === "FINISHED"
         ? await this.prisma.attempt.findUnique({ where: { id: attemptId } })
         : await this.prisma.attempt.update({
-            where: { id: attemptId },
-            data: {
-              status: "FINISHED",
-              finishedAt: new Date(),
-              total,
-              score: correct,
-            },
-          })
+          where: { id: attemptId },
+          data: {
+            status: "FINISHED",
+            finishedAt: new Date(),
+            total,
+            score: correct,
+          },
+        })
 
     return {
       attemptId: row!.id,
@@ -314,6 +357,7 @@ export class AttemptsService {
       unanswered,
     }
   }
+
 
   async summary(attemptId: string) {
     const attempt = await this.prisma.attempt.findUnique({
@@ -330,17 +374,17 @@ export class AttemptsService {
     })
     if (!attempt) throw new BadRequestException("Attempt not found")
 
-    const total = await this.prisma.question.count({
-      where: { bankId: attempt.bankId },
-    })
+    const total = 25
 
     const answers = await this.prisma.attemptAnswer.findMany({
       where: { attemptId },
       select: { isCorrect: true },
     })
 
+    const answered = answers.length
     const correct = answers.filter((a) => a.isCorrect).length
     const wrong = total - correct
+    const unanswered = total - answered
 
     return {
       attemptId: attempt.id,
@@ -350,9 +394,10 @@ export class AttemptsService {
       score: correct,
       total,
       stats: {
-        answered: answers.length,
+        answered,
         correct,
         wrong,
+        unanswered,
       },
       exam: attempt.bank,
     }
@@ -371,7 +416,7 @@ export class AttemptsService {
           select: {
             id: true,
             text: true,
-            imageUrl: true,
+            images: true,
             correctOptionId: true,
             correctAnswerText: true,
             options: { select: { id: true, text: true } },
@@ -400,15 +445,77 @@ export class AttemptsService {
     if (!attempt) throw new BadRequestException("Attempt not found")
     if (attempt.userId !== userId) throw new BadRequestException("This attempt does not belong to this user")
 
-    const answers = await this.attemptAnswers(attemptId)
+    const aq = await this.prisma.attemptQuestion.findMany({
+      where: { attemptId },
+      orderBy: { order: "asc" },
+      include: {
+        question: {
+          select: {
+            id: true,
+            text: true,
+            images: { select: { url: true, sort: true } },
+            correctOptionId: true,
+            correctAnswerText: true,
+            options: { select: { id: true, text: true } },
+          },
+        },
+      },
+    })
 
-    const correct = answers.filter((a) => a.isCorrect).length
-    const wrong = answers.length - correct
+    if (aq.length === 0) {
+      await this.getAttemptQuestions(attemptId, userId)
 
-    const items = answers.map((a) => {
-      const opts = a.question.options
-      const dbCorrectId = a.question.correctOptionId
-      const dbCorrectText = a.question.correctAnswerText
+      const aq2 = await this.prisma.attemptQuestion.findMany({
+        where: { attemptId },
+        orderBy: { order: "asc" },
+        include: {
+          question: {
+            select: {
+              id: true,
+              text: true,
+              images: { select: { url: true, sort: true } },
+              correctOptionId: true,
+              correctAnswerText: true,
+              options: { select: { id: true, text: true } },
+            },
+          },
+        },
+      })
+
+      if (aq2.length === 0) throw new BadRequestException("Attempt questions not generated")
+      var attemptQuestions = aq2
+    } else {
+      var attemptQuestions = aq
+    }
+
+    const total = 25
+    const picked = attemptQuestions.slice(0, total)
+
+    const answers = await this.prisma.attemptAnswer.findMany({
+      where: { attemptId },
+      select: {
+        id: true,
+        questionId: true,
+        selectedOptionId: true,
+        isCorrect: true,
+        createdAt: true,
+        selectedOption: { select: { id: true, text: true } },
+      },
+    })
+    const ansMap = new Map(answers.map((a) => [a.questionId, a]))
+
+    const answeredCount = answers.length
+    const correctCount = answers.filter((a) => a.isCorrect).length
+    const wrongCount = total - correctCount
+    const unansweredCount = total - answeredCount
+
+    const items = picked.map((row) => {
+      const q = row.question
+      const a = ansMap.get(q.id) ?? null
+
+      const opts = q.options
+      const dbCorrectId = q.correctOptionId
+      const dbCorrectText = q.correctAnswerText
 
       let correctOption = dbCorrectId ? opts.find((o) => o.id === dbCorrectId) : null
 
@@ -423,21 +530,27 @@ export class AttemptsService {
       const resolvedCorrectOptionText = correctOption?.text ?? (dbCorrectText || null)
 
       return {
-        answerId: a.id,
-        createdAt: a.createdAt,
-        isCorrect: a.isCorrect,
+        order: row.order,
+        answered: !!a,
+        answerId: a?.id ?? null,
+        createdAt: a?.createdAt ?? null,
+        isCorrect: a?.isCorrect ?? null,
+
         question: {
-          id: a.question.id,
-          text: a.question.text,
-          imageUrl: a.question.imageUrl,
+          id: q.id,
+          text: q.text,
+          imageUrl: q.images, 
           options: opts,
           correctOptionId: resolvedCorrectOptionId,
           correctOptionText: resolvedCorrectOptionText,
         },
-        selected: {
-          id: a.selectedOption.id,
-          text: a.selectedOption.text,
-        },
+
+        selected: a
+          ? {
+            id: a.selectedOption.id,
+            text: a.selectedOption.text,
+          }
+          : null,
       }
     })
 
@@ -460,13 +573,16 @@ export class AttemptsService {
         topic: attempt.bank.topic,
       },
       stats: {
-        answered: answers.length,
-        correct,
-        wrong,
+        total,
+        answered: answeredCount,
+        correct: correctCount,
+        wrong: wrongCount,
+        unanswered: unansweredCount,
       },
-      items,
+      items, 
     }
   }
+
 
   async cleanupInProgress(userId: number) {
     const res = await this.prisma.attempt.deleteMany({
@@ -524,11 +640,11 @@ export class AttemptsService {
         attempt: x.attempt,
         admin: x.admin
           ? {
-              id: x.admin.id,
-              email: x.admin.email,
-              name: `${x.admin.firstName ?? ""} ${x.admin.lastName ?? ""}`.trim(),
-              role: x.admin.role,
-            }
+            id: x.admin.id,
+            email: x.admin.email,
+            name: `${x.admin.firstName ?? ""} ${x.admin.lastName ?? ""}`.trim(),
+            role: x.admin.role,
+          }
           : null,
       })),
     }
