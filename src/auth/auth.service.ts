@@ -141,18 +141,18 @@ export class AuthService {
     }
   }
 
- private async sendVerificationEmail(to: string, code: string) {
-  const transporter = nodemailer.createTransport({
-    host: this.config.get('SMTP_HOST'),
-    port: +this.config.get('SMTP_PORT'),
-    secure: +this.config.get('SMTP_PORT') === 465,
-    auth: {
-      user: this.config.get('SMTP_USER'),
-      pass: this.config.get('SMTP_PASS'),
-    },
-  });
+  private async sendVerificationEmail(to: string, code: string) {
+    const transporter = nodemailer.createTransport({
+      host: this.config.get('SMTP_HOST'),
+      port: +this.config.get('SMTP_PORT'),
+      secure: +this.config.get('SMTP_PORT') === 465,
+      auth: {
+        user: this.config.get('SMTP_USER'),
+        pass: this.config.get('SMTP_PASS'),
+      },
+    });
 
-  const html = `
+    const html = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -292,7 +292,7 @@ export class AuthService {
   <div class="container">
     <div class="header">
       <a href="http://217.64.24.9:3003" target="_blank">
-        <img class="logo" src="http://217.64.24.9:3002/uploads/Logo.png" alt="İmtahanVer.net loqosu" />
+        <img class="logo" src="http://217.64.24.9:3002/uploads/1Logo.png" alt="İmtahanVer.net loqosu" />
       </a>
       <h1>E-poçtun təsdiqlənməsi</h1>
       <p>Hesabınızın təhlükəsizliyini təmin edin</p>
@@ -315,14 +315,14 @@ export class AuthService {
 
       <div class="warning">
         <strong>Siz bu sorğunu etməmisiniz?</strong>
-        Əgər ImtahanVer.net platformasında qeydiyyatdan keçməmisinizsə,
+        // Əgər ImtahanVer.net platformasında qeydiyyatdan keçməmisinizsə,
         bu e-poçtu təhlükəsiz şəkildə nəzərə almaya bilərsiniz.
       </div>
     </div>
 
     <div class="footer">
       <p>
-        © ${new Date().getFullYear()} <strong>ImtahanVer.net</strong> •
+        // © ${new Date().getFullYear()} <strong>ImtahanVer.net</strong> •
         <a href="#">Məxfilik Siyasəti</a>
       </p>
     </div>
@@ -331,13 +331,14 @@ export class AuthService {
 </html>
 `;
 
-  await transporter.sendMail({
-    from: `"ImtahanVer.net" <${this.config.get('SMTP_USER')}>`,
-    to,
-    subject: 'Doğrulama kodunuz',
-    html,
-  });
-}
+    await transporter.sendMail({
+      // from: `"ImtahanVer.net" <${this.config.get('SMTP_USER')}>`,
+      from: `"TEST" <${this.config.get('SMTP_USER')}>`,
+      to,
+      subject: 'Doğrulama kodunuz',
+      html,
+    });
+  }
 
 
   private async sendWelcomeEmail(to: string, name?: string) {
@@ -352,7 +353,7 @@ export class AuthService {
     });
 
     const safeName = name ?? 'User';
-   const html = `
+    const html = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -401,25 +402,25 @@ export class AuthService {
   <div class="container">
     <div class="header">
       <a href="http://217.64.24.9:3003" target="_blank" rel="noreferrer">
-        <img class="logo" src="http://217.64.24.9:3002/uploads/Logo.png" alt="İmtahanVer.net loqosu" />
+        <img class="logo" src="http://217.64.24.9:3002/uploads/1Logo.png" alt="İmtahanVer.net loqosu" />
       </a>
-      <h1>ImtahanVer.net-ə xoş gəlmisiniz</h1>
+      // <h1>ImtahanVer.net-ə xoş gəlmisiniz</h1>
       <p>Hesabınız aktivləşdirildi</p>
     </div>
 
     <div class="content">
       <div class="greeting">Salam ${safeName},</div>
       <div class="message">
-        ImtahanVer.net platformasına qoşulduğunuz üçün təşəkkür edirik!
+        // ImtahanVer.net platformasına qoşulduğunuz üçün təşəkkür edirik!
         Hesabınız uğurla aktivləşdirildi.
         Artıq sistemə daxil olaraq imtahanlarda iştirak edə bilərsiniz.
       </div>
 
-      <div class="cta-wrap" style="color:white">
-        <a class="cta" style="color:white" href="http://217.64.24.9:3003" target="_blank" rel="noreferrer">
-          İmtahanVer.net-ə keç
-        </a>
-      </div>
+      // <div class="cta-wrap" style="color:white">
+      //   <a class="cta" style="color:white" href="http://217.64.24.9:3003" target="_blank" rel="noreferrer">
+      //     İmtahanVer.net-ə keç
+      //   </a>
+      // </div>
 
       <div class="message">
         Əgər bu e-poçt ünvanı ilə hesab yaratmamısınızsa, zəhmət olmasa dəstək komandamızla əlaqə saxlayın
@@ -427,7 +428,7 @@ export class AuthService {
       </div>
 
       <div class="note">
-        © ${new Date().getFullYear()} ImtahanVer.net • 
+        // © ${new Date().getFullYear()} ImtahanVer.net • 
         <a target="_blank" href="http://217.64.24.9:3003/privacy" style="color:inherit; text-decoration:underline;">
           Məxfilik Siyasəti
         </a>
@@ -445,9 +446,12 @@ export class AuthService {
 
     try {
       await transporter.sendMail({
-        from: `"ImtahanVer.net" <${this.config.get('SMTP_USER')}>`,
+        // from: `"ImtahanVer.net" <${this.config.get('SMTP_USER')}>`,
+        from: `"TEST" <${this.config.get('SMTP_USER')}>`,
         to,
-        subject: 'ImtahanVer.net-ə xoş gəldiniz — Hesabınız təsdiqləndi',
+        // subject: 'ImtahanVer.net-ə xoş gəldiniz — Hesabınız təsdiqləndi',
+        subject: 'TEST-ə xoş gəldiniz — Hesabınız təsdiqləndi',
+
         html,
       });
     } catch (err) {
@@ -931,21 +935,22 @@ export class AuthService {
   }
 
   private async sendResetEmail(to: string, resetUrl: string) {
-  const transporter = nodemailer.createTransport({
-    host: this.config.get('SMTP_HOST'),
-    port: +this.config.get('SMTP_PORT'),
-    secure: +this.config.get('SMTP_PORT') === 465,
-    auth: {
-      user: this.config.get('SMTP_USER'),
-      pass: this.config.get('SMTP_PASS'),
-    },
-  });
+    const transporter = nodemailer.createTransport({
+      host: this.config.get('SMTP_HOST'),
+      port: +this.config.get('SMTP_PORT'),
+      secure: +this.config.get('SMTP_PORT') === 465,
+      auth: {
+        user: this.config.get('SMTP_USER'),
+        pass: this.config.get('SMTP_PASS'),
+      },
+    });
 
-  await transporter.sendMail({
-    from: `"ImtahanVer.net" <${this.config.get('SMTP_USER')}>`,
-    to,
-    subject: 'Şifrənin sıfırlanması',
-    html: `
+    await transporter.sendMail({
+      // from: `"ImtahanVer.net" <${this.config.get('SMTP_USER')}>`,
+      from: `"TEST" <${this.config.get('SMTP_USER')}>`,
+      to,
+      subject: 'Şifrənin sıfırlanması',
+      html: `
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
   <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
     <tr>
@@ -955,7 +960,7 @@ export class AuthService {
             <td style="padding: 48px 40px 32px; text-align: center; background: linear-gradient(360deg, #fafafa 0%, #e5e5e5 100%); border-radius: 16px 16px 0 0;">
               <div style="padding: 40px 30px; text-align: center;">
                 <a href="http://217.64.24.9:3003" target="_blank">
-                  <img style="width: 130px;" src="http://217.64.24.9:3002/uploads/Logo.png" alt="İmtahanVer.net loqosu" />
+                  <img style="width: 130px;" src="http://217.64.24.9:3002/uploads/1Logo.png" alt="İmtahanVer.net loqosu" />
                 </a>
               </div>
               <h1 style="margin: 0; color: #000; font-size: 28px; font-weight: 700; line-height: 1.3;">
@@ -1006,9 +1011,9 @@ export class AuthService {
               <p style="margin: 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.6;">
                 Bu avtomatik göndərilən mesajdır — cavab verməyin.
               </p>
-              <p style="margin: 12px 0 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.6;">
-                © ${new Date().getFullYear()} ImtahanVer.net • Bütün hüquqlar qorunur
-              </p>
+              // <p style="margin: 12px 0 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.6;">
+                // © ${new Date().getFullYear()} ImtahanVer.net • Bütün hüquqlar qorunur
+              // </p>
             </td>
           </tr>
 
@@ -1018,8 +1023,8 @@ export class AuthService {
   </table>
 </body>
     `,
-  });
-}
+    });
+  }
 
 
   async checkToken(token: string) {
