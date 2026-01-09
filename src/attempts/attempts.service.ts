@@ -73,26 +73,73 @@ export class AttemptsService {
   }
 
   async createOneTimeExamToken(bankId: string, userId: number, ttlMinutes = 10) {
-    const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } })
-    if (!bank) throw new BadRequestException("Bank not found")
+    const now = new Date()
 
-    const user = await this.prisma.user.findUnique({ where: { id: userId } })
-    if (!user) throw new BadRequestException("User not found")
+    return this.prisma.$transaction(async (tx) => {
+      const bank = await tx.questionBank.findUnique({ where: { id: bankId } })
+      if (!bank) throw new BadRequestException("Bank not found")
 
-    const token = this.genToken()
-    const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000)
+      const user = await tx.user.findUnique({ where: { id: userId } })
+      if (!user) throw new BadRequestException("User not found")
 
-    await this.prisma.examToken.create({
-      data: {
-        token,
-        bankId,
-        userId,
-        expiresAt,
-      },
+      const inProgress = await tx.attempt.findFirst({
+        where: { userId, bankId, status: "IN_PROGRESS" },
+        orderBy: { startedAt: "desc" },
+        select: { id: true },
+      })
+
+      if (inProgress) {
+        await tx.attemptAnswer.deleteMany({ where: { attemptId: inProgress.id } })
+        await tx.attemptQuestion.deleteMany({ where: { attemptId: inProgress.id } })
+
+        await tx.examToken.updateMany({
+          where: { attemptId: inProgress.id },
+          data: { attemptId: null },
+        })
+
+        await tx.attempt.delete({ where: { id: inProgress.id } })
+      }
+
+      await tx.examToken.deleteMany({
+        where: { bankId, userId, usedAt: null },
+      })
+
+      const price = asDec(bank.price)
+      const bal = asDec(user.balance)
+      if (bal.lessThan(price)) throw new BadRequestException("Insufficient balance")
+
+      const newBal = round2(bal.minus(price))
+
+      const token = this.genToken()
+      const expiresAt = new Date(now.getTime() + ttlMinutes * 60 * 1000)
+
+      const tokenRow = await tx.examToken.create({
+        data: { token, bankId, userId, expiresAt },
+      })
+
+      await tx.user.update({
+        where: { id: userId },
+        data: { balance: newBal },
+      })
+
+      await tx.balanceTransaction.create({
+        data: {
+          userId,
+          bankId,
+          attemptId: null,
+          type: "EXAM_DEBIT",
+          amount: round2(price.mul(-1)),
+          balanceBefore: round2(bal),
+          balanceAfter: round2(newBal),
+          note: `Exam token created: ${bank.title} (${bank.year}) • non-refundable`,
+        },
+      })
+
+      return { token: tokenRow.token, expiresAt }
     })
-
-    return { token, expiresAt }
   }
+
+
 
   async revokeToken(bankId: string, userId: number, token: string) {
     const now = new Date()
@@ -120,7 +167,6 @@ export class AttemptsService {
       const user = await tx.user.findUnique({ where: { id: userId } })
       if (!user) throw new BadRequestException("User not found")
 
-
       const existingAttempt = await tx.attempt.findFirst({
         where: { userId, bankId, status: "IN_PROGRESS" },
         orderBy: { startedAt: "desc" },
@@ -136,11 +182,6 @@ export class AttemptsService {
       if (tokenRow.expiresAt.getTime() < now.getTime()) throw new BadRequestException("Token expired")
       if (tokenRow.attemptId) throw new BadRequestException("Token already used")
 
-      const price = asDec(bank.price)
-      const bal = asDec(user.balance)
-      if (bal.lessThan(price)) throw new BadRequestException("Insufficient balance")
-
-      const newBal = round2(bal.minus(price))
 
       const attempt = await tx.attempt.create({
         data: {
@@ -159,27 +200,10 @@ export class AttemptsService {
         },
       })
 
-      await tx.user.update({
-        where: { id: userId },
-        data: { balance: newBal },
-      })
-
-      await tx.balanceTransaction.create({
-        data: {
-          userId,
-          bankId,
-          attemptId: attempt.id,
-          type: "EXAM_DEBIT",
-          amount: round2(price.mul(-1)),
-          balanceBefore: round2(bal),
-          balanceAfter: round2(newBal),
-          note: `Exam started: ${bank.title} (${bank.year})`,
-        },
-      })
-
-      return { attempt, remainingBalance: newBal.toString() }
+      return { attempt, remainingBalance: user.balance.toString() }
     })
   }
+
 
   async getAttemptQuestions(attemptId: string, userId: number) {
     const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } })
@@ -539,7 +563,7 @@ export class AttemptsService {
         question: {
           id: q.id,
           text: q.text,
-          imageUrl: q.images, 
+          imageUrl: q.images,
           options: opts,
           correctOptionId: resolvedCorrectOptionId,
           correctOptionText: resolvedCorrectOptionText,
@@ -579,7 +603,7 @@ export class AttemptsService {
         wrong: wrongCount,
         unanswered: unansweredCount,
       },
-      items, 
+      items,
     }
   }
 
