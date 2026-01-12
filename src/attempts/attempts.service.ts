@@ -673,4 +673,74 @@ export class AttemptsService {
       })),
     }
   }
+
+  async adminListResults(params: {
+    page?: number
+    limit?: number
+    q?: string
+    status?: "FINISHED" | "IN_PROGRESS"
+  }) {
+    const p = Math.max(1, Number(params.page) || 1)
+    const l = Math.min(100, Math.max(1, Number(params.limit) || 20))
+    const skip = (p - 1) * l
+
+    const q = String(params.q || "").trim()
+    const status = params.status
+
+    const where: any = {}
+
+    if (status === "FINISHED") {
+      where.status = "FINISHED"
+      where.finishedAt = { not: null }
+    } else if (status === "IN_PROGRESS") {
+      where.status = "IN_PROGRESS"
+    }
+
+    if (q) {
+      where.OR = [
+        { user: { email: { contains: q, mode: "insensitive" } } },
+        { user: { firstName: { contains: q, mode: "insensitive" } } },
+        { user: { lastName: { contains: q, mode: "insensitive" } } },
+        { user: { publicId: { contains: q, mode: "insensitive" } } },
+        { bank: { title: { contains: q, mode: "insensitive" } } },
+      ]
+    }
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.attempt.findMany({
+        where,
+        orderBy: { startedAt: "desc" },
+        skip,
+        take: l,
+        include: {
+          user: { select: { id: true, email: true, firstName: true, lastName: true, publicId: true } },
+          bank: {
+            include: {
+              university: true,
+              subject: true,
+              topic: { include: { course: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.attempt.count({ where }),
+    ])
+
+    return {
+      page: p,
+      limit: l,
+      total,
+      pages: Math.max(1, Math.ceil(total / l)),
+      items: items.map((a) => ({
+        id: a.id,
+        status: a.status,
+        startedAt: a.startedAt,
+        finishedAt: a.finishedAt,
+        score: a.score,
+        total: a.total,
+        user: a.user,
+        bank: a.bank,
+      })),
+    }
+  }
 }

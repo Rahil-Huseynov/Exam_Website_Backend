@@ -15,11 +15,11 @@ import { AnswerDto } from "./dto/answer.dto"
 import { CreateAttemptWithTokenDto } from "./dto/create-attempt-with-token.dto"
 import { RevokeTokenDto } from "./dto/revoke-token.dto"
 
-import { JwtGuard } from "../auth/guard"
+import { AdminGuard, JwtGuard } from "../auth/guard"
 
 @Controller()
 export class AttemptsController {
-  constructor(private readonly attempts: AttemptsService) {}
+  constructor(private readonly attempts: AttemptsService) { }
 
   @Get("users/:userId/attempts")
   async userAttempts(
@@ -145,4 +145,21 @@ export class AttemptsController {
 
     return this.attempts.balanceHistory(userId, p, l)
   }
+
+  @UseGuards(JwtGuard, AdminGuard)
+  @Get("admin/results")
+  async adminResults(
+    @Query("page") page = "1",
+    @Query("limit") limit = "20",
+    @Query("q") q = "",
+    @Query("status") status?: "FINISHED" | "IN_PROGRESS",
+  ) {
+    return this.attempts.adminListResults({
+      page: Number(page),
+      limit: Number(limit),
+      q,
+      status,
+    })
+  }
+
 }
