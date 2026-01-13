@@ -98,7 +98,7 @@ function normalizeAndPersistImageUrl(raw: string) {
     const ext = extFromMime(mime)
     if (!ext) return null
 
-    const max = 8 * 1024 * 1024 
+    const max = 8 * 1024 * 1024
     if (buf.length > max) return null
 
     const dir = path.join(process.cwd(), "uploads", "question")
@@ -257,10 +257,23 @@ export class QuestionsService {
     if (!title) throw new BadRequestException("Title is required")
 
     const year = Number(dto.year)
-    if (!Number.isInteger(year) || year < 1900 || year > 3000) throw new BadRequestException("Year is invalid")
+    if (!Number.isInteger(year) || year < 1900 || year > 3000) {
+      throw new BadRequestException("Year is invalid")
+    }
 
     const priceNumber = typeof dto.price === "string" ? Number(dto.price) : Number(dto.price)
-    if (!Number.isFinite(priceNumber) || priceNumber < 0) throw new BadRequestException("Price is invalid")
+    if (!Number.isFinite(priceNumber) || priceNumber < 0) {
+      throw new BadRequestException("Price is invalid")
+    }
+
+    const qcRaw = (dto as any).questionCount
+    const questionCount = qcRaw === undefined || qcRaw === null ? undefined : Number(qcRaw)
+
+    if (questionCount !== undefined) {
+      if (!Number.isInteger(questionCount) || questionCount < 1) {
+        throw new BadRequestException("questionCount is invalid")
+      }
+    }
 
     const uni = await this.prisma.university.findUnique({ where: { id: dto.universityId } })
     if (!uni) throw new BadRequestException("University not found")
@@ -279,6 +292,8 @@ export class QuestionsService {
         universityId: dto.universityId,
         subjectId: dto.subjectId,
         topicId: anyTopic.id,
+
+        ...(questionCount !== undefined ? { questionCount } : {}),
       },
       include: {
         university: true,
@@ -292,7 +307,11 @@ export class QuestionsService {
       title: created.title,
       year: created.year,
       price: Number(created.price),
-      questionCount: created._count.questions,
+
+      questionCount: created.questionCount ?? 1,
+
+      questionsTotal: created._count.questions,
+
       university: created.university,
       subject: created.subject,
     }
@@ -318,23 +337,29 @@ export class QuestionsService {
       title: b.title,
       year: b.year,
       price: Number(b.price),
-      questionCount: b._count.questions,
+
+      questionCount: b.questionCount ?? 1,
+
+      questionsTotal: b._count.questions,
+      totalQuestions: b._count.questions,
+
       university: b.university,
       subject: b.subject,
     }))
   }
 
-  async updateBank(bankId: string, body: { title?: string; year?: number | string; price?: number | string }) {
-    const bank = await this.prisma.questionBank.findUnique({
-      where: { id: bankId },
-      include: { university: true, subject: true, _count: { select: { questions: true } } },
-    })
+
+  async updateBank(
+    bankId: string,
+    body: { title?: string; year?: number | string; price?: number | string; questionCount?: number | string },
+  ) {
+    const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } })
     if (!bank) throw new BadRequestException("Exam/Bank not found")
 
     const data: any = {}
 
     if (body.title !== undefined) {
-      const title = (String(body.title || "") || "").trim()
+      const title = String(body.title || "").trim()
       if (!title) throw new BadRequestException("Title is required")
       data.title = title
       data.name = title
@@ -342,20 +367,34 @@ export class QuestionsService {
 
     if (body.year !== undefined) {
       const year = Number(body.year)
-      if (!Number.isInteger(year) || year < 1900 || year > 3000) throw new BadRequestException("Year is invalid")
+      if (!Number.isInteger(year) || year < 1900 || year > 3000) {
+        throw new BadRequestException("Year is invalid")
+      }
       data.year = year
     }
 
     if (body.price !== undefined) {
       const priceNumber = Number(body.price)
-      if (!Number.isFinite(priceNumber) || priceNumber < 0) throw new BadRequestException("Price is invalid")
+      if (!Number.isFinite(priceNumber) || priceNumber < 0) {
+        throw new BadRequestException("Price is invalid")
+      }
       data.price = new Prisma.Decimal(priceNumber)
+    }
+
+    if (body.questionCount !== undefined) {
+      const qc = Number(body.questionCount)
+      if (!Number.isInteger(qc) || qc < 1) throw new BadRequestException("questionCount is invalid")
+      data.questionCount = qc
     }
 
     const updated = await this.prisma.questionBank.update({
       where: { id: bankId },
       data,
-      include: { university: true, subject: true, _count: { select: { questions: true } } },
+      include: {
+        university: true,
+        subject: true,
+        _count: { select: { questions: true } },
+      },
     })
 
     return {
@@ -363,7 +402,11 @@ export class QuestionsService {
       title: updated.title,
       year: updated.year,
       price: Number(updated.price),
-      questionCount: updated._count.questions,
+
+      questionCount: updated.questionCount ?? 1,
+
+      questionsTotal: updated._count.questions,
+
       university: updated.university,
       subject: updated.subject,
     }

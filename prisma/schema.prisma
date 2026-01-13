@@ -171,7 +171,7 @@ model QuestionBank {
   name    String
   topicId String
   topic   Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
-
+  questionCount Int @default(25) 
   pdfFiles   PdfImport[]
   questions  Question[]
   attempts   Attempt[]

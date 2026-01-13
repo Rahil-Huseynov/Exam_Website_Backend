@@ -21,6 +21,7 @@ import { CreateExamDto } from "./dto/create-exam.dto"
 import { ImportQuestionsDirectDto } from "./dto/import-direct.dto"
 import { UpdateQuestionDto } from "./dto/update-question.dto"
 import { CreateQuestionDto } from "./dto/create-question.dto"
+import { UpdateExamDto } from "./dto/update-exam.dto"
 
 function ensureDir(dirPath: string) {
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true })
@@ -50,7 +51,7 @@ function makeImageStorage(subdir: string) {
 
 @Controller("questions")
 export class QuestionsController {
-  constructor(private qs: QuestionsService) {}
+  constructor(private qs: QuestionsService) { }
 
   // ---------------- Universities ----------------
   @Get("universities")
@@ -142,9 +143,9 @@ export class QuestionsController {
   @Patch("bank/:bankId")
   async updateBank(
     @Param("bankId") bankId: string,
-    @Body() body: { title?: string; year?: number | string; price?: number | string },
+    @Body() dto: UpdateExamDto,
   ) {
-    return this.qs.updateBank(bankId, body)
+    return this.qs.updateBank(bankId, dto)
   }
 
   @Delete("bank/:bankId")
@@ -187,7 +188,7 @@ export class QuestionsController {
         if (!ext) return cb(new Error("Only png/jpg/jpeg/webp/svg allowed"), false)
         cb(null, true)
       },
-      limits: { fileSize: 8 * 1024 * 1024 }, 
+      limits: { fileSize: 8 * 1024 * 1024 },
     }),
   )
   async uploadQuestionImages(@Param("questionId") questionId: string, @UploadedFiles() files?: Express.Multer.File[]) {
@@ -210,7 +211,7 @@ export class QuestionsController {
 
 @Controller()
 export class BankQuestionsController {
-  constructor(private qs: QuestionsService) {}
+  constructor(private qs: QuestionsService) { }
 
   @Post("banks/:bankId/questions/import-direct")
   async importDirect(@Param("bankId") bankId: string, @Body() dto: ImportQuestionsDirectDto) {
