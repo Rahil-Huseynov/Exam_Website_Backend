@@ -317,13 +317,28 @@ export class QuestionsService {
     }
   }
 
-  async getExams(filter: { universityId?: string; subjectId?: string; year?: number }) {
+  async getExams(filter: { universityId?: string; subjectId?: string; year?: number; search?: string; page?: number; limit?: number }) {
+    const page = filter.page ?? 1
+    const limit = filter.limit ?? 10
+    const skip = (page - 1) * limit
+
+    const where: Prisma.QuestionBankWhereInput = {
+      ...(filter.universityId ? { universityId: filter.universityId } : {}),
+      ...(filter.subjectId ? { subjectId: filter.subjectId } : {}),
+      ...(filter.year ? { year: filter.year } : {}),
+      ...(filter.search ? {
+        OR: [
+          { title: { contains: filter.search, mode: "insensitive" } },
+          { university: { name: { contains: filter.search, mode: "insensitive" } } },
+          { subject: { name: { contains: filter.search, mode: "insensitive" } } },
+        ],
+      } : {}),
+    }
+
     const rows = await this.prisma.questionBank.findMany({
-      where: {
-        ...(filter.universityId ? { universityId: filter.universityId } : {}),
-        ...(filter.subjectId ? { subjectId: filter.subjectId } : {}),
-        ...(filter.year ? { year: filter.year } : {}),
-      },
+      where,
+      skip,
+      take: limit,
       include: {
         university: true,
         subject: true,
@@ -785,11 +800,12 @@ export class QuestionsService {
   }
 
   // ---------------- Years ----------------
-  async listExamYears({ universityId }: { universityId?: string }) {
-    if (!universityId) throw new BadRequestException("universityId is required")
-
+  async listExamYears(filter: { universityId?: string; subjectId?: string }) {
     const rows = await this.prisma.questionBank.findMany({
-      where: { universityId },
+      where: {
+        ...(filter.universityId ? { universityId: filter.universityId } : {}),
+        ...(filter.subjectId ? { subjectId: filter.subjectId } : {}),
+      },
       distinct: ["year"],
       select: { year: true },
       orderBy: { year: "desc" },
