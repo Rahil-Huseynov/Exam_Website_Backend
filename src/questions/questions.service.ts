@@ -852,7 +852,7 @@ export class QuestionsService {
         },
       },
       orderBy: {
-        createdAt: "asc", 
+        createdAt: "desc",
       },
     })) as Prisma.QuestionGetPayload<{
       include: {
@@ -860,6 +860,7 @@ export class QuestionsService {
         images: true
       }
     }>[]
+
     if (bank.random) {
       questions = shuffle(questions)
     }
@@ -880,6 +881,7 @@ export class QuestionsService {
       })),
     }))
   }
+
 
 
 
