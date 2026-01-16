@@ -833,22 +833,33 @@ export class QuestionsService {
     const bank = await this.prisma.questionBank.findUnique({
       where: { id: examId },
     })
-    if (!bank) throw new BadRequestException("Exam not found")
+
+    if (!bank) {
+      throw new BadRequestException("Exam not found")
+    }
 
     const takeCount = bank.questionCount ?? 25
 
-    let questions = await this.prisma.question.findMany({
+    let questions = (await this.prisma.question.findMany({
       where: {
         bankId: examId,
         correctOptionId: { not: null },
       },
       include: {
         options: true,
-        images: { orderBy: { sort: "asc" } },
+        images: {
+          orderBy: { sort: "asc" },
+        },
       },
-      orderBy: { createdAt: "asc" },
-    })
-
+      orderBy: {
+        createdAt: "asc", 
+      },
+    })) as Prisma.QuestionGetPayload<{
+      include: {
+        options: true
+        images: true
+      }
+    }>[]
     if (bank.random) {
       questions = shuffle(questions)
     }
@@ -863,7 +874,7 @@ export class QuestionsService {
         url: im.url,
         sort: im.sort,
       })),
-      options: shuffle(q.options).map((o) => ({
+      options: (bank.random ? shuffle(q.options) : q.options).map((o) => ({
         id: o.id,
         text: o.text,
       })),
