@@ -702,10 +702,16 @@ export class QuestionsService {
     const qs = dto.questions || []
     if (!qs.length) throw new BadRequestException("No questions")
 
+    const last = await this.prisma.question.findFirst({
+      where: { bankId },
+      orderBy: { sort: "desc" },
+      select: { sort: true },
+    })
+
+    let sortIndex = (last?.sort ?? -1) + 1
+
     const result = await this.prisma.$transaction(async (tx) => {
-      const createdIds: string[] = []
       let createdCount = 0
-      let skippedImagesTotal = 0
 
       for (const q of qs) {
         const qText = normText((q as any).text || "")
@@ -715,35 +721,28 @@ export class QuestionsService {
         const cleaned = rawOptions.map(normOpt).filter(Boolean)
         if (cleaned.length < 2) continue
 
-        const seen = new Set<string>()
-        const uniqueOpts: string[] = []
-        for (const t of cleaned) {
-          const k = t.toLowerCase()
-          if (seen.has(k)) continue
-          seen.add(k)
-          uniqueOpts.push(t)
-        }
+        const uniqueOpts = [...new Set(cleaned.map(o => o.toLowerCase()))]
+          .map(k => cleaned.find(o => o.toLowerCase() === k)!)
+          .slice(0, 5)
 
-        const finalOpts = uniqueOpts.slice(0, 5)
-        if (finalOpts.length < 2) continue
+        const desiredCorrect = (q as any).correctAnswerText
+          ? normOpt((q as any).correctAnswerText)
+          : ""
 
-        const desiredCorrect = (q as any).correctAnswerText ? normOpt((q as any).correctAnswerText) : ""
         const correctInOptions = desiredCorrect
-          ? finalOpts.find((x) => x.toLowerCase() === desiredCorrect.toLowerCase()) || null
+          ? uniqueOpts.find(o => o.toLowerCase() === desiredCorrect.toLowerCase()) || null
           : null
 
         const rawImageUrls = (q as any).imageUrls || []
-        const rawCount = Array.isArray(rawImageUrls) ? rawImageUrls.filter(Boolean).length : 0
-
-        const normalizedImages = (Array.isArray(rawImageUrls) ? rawImageUrls : [])
+        const normalizedImages = rawImageUrls
           .map((u: any) => normalizeAndPersistImageUrl(String(u || "")))
-          .filter((x: any): x is string => !!x)
+          .filter(Boolean) as string[]
 
-        skippedImagesTotal += Math.max(0, rawCount - normalizedImages.length)
         const question = await tx.question.create({
           data: {
             bankId,
             text: qText,
+            sort: sortIndex++, 
             correctAnswerText: correctInOptions,
             correctOptionId: null,
             images: normalizedImages.length
@@ -759,17 +758,20 @@ export class QuestionsService {
         })
 
         await tx.questionOption.createMany({
-          data: finalOpts.map((text) => ({ questionId: question.id, text })),
-          skipDuplicates: true,
+          data: uniqueOpts.map(text => ({
+            questionId: question.id,
+            text,
+          })),
         })
 
         if (correctInOptions) {
           const opts = await tx.questionOption.findMany({
             where: { questionId: question.id },
-            select: { id: true, text: true },
           })
 
-          const match = opts.find((o) => o.text.trim().toLowerCase() === correctInOptions.trim().toLowerCase())
+          const match = opts.find(
+            o => o.text.toLowerCase() === correctInOptions.toLowerCase(),
+          )
 
           if (match) {
             await tx.question.update({
@@ -779,23 +781,18 @@ export class QuestionsService {
                 correctAnswerText: match.text,
               },
             })
-          } else {
-            await tx.question.update({
-              where: { id: question.id },
-              data: { correctOptionId: null },
-            })
           }
         }
 
         createdCount++
-        createdIds.push(question.id)
       }
 
-      return { createdCount, createdIds, skippedImagesTotal }
+      return { createdCount }
     })
 
     return { ok: true, ...result }
   }
+
 
   // ---------------- Years ----------------
   async listExamYears(filter: { universityId?: string; subjectId?: string }) {
@@ -827,11 +824,11 @@ export class QuestionsService {
         options: true,
         images: { orderBy: { sort: "asc" } },
       },
-      orderBy: { sort: "asc" },
+      orderBy: { sort: "asc" }, 
     })
 
     if (bank.random) {
-      questions = shuffle(questions)
+      questions = shuffle(questions) 
     }
 
     questions = questions.slice(0, take)
