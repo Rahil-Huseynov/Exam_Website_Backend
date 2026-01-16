@@ -747,7 +747,7 @@ export class QuestionsService {
           data: {
             bankId,
             text: qText,
-            sort: sortIndex++, 
+            sort: sortIndex++,
             correctAnswerText: correctInOptions,
             correctOptionId: null,
             images: normalizedImages.length
@@ -819,47 +819,60 @@ export class QuestionsService {
     if (!bank) throw new BadRequestException("Exam not found")
 
     const take = bank.questionCount ?? 25
+    const isRandom = !!bank.random // güvənli boolean çevirmə
 
-    // Güvənli boolean yoxlaması (string kimi gəlməsin deyə)
-    const isRandom = bank.random === true
+    type Q = QuestionWithRelations
 
-    let questions: QuestionWithRelations[] = []
-
-    if (isRandom) {
-      // Random olduqda bütün uyğun sualları alıb JS tərəfdən qarışdır və slice et
-      questions = await this.prisma.question.findMany({
+    if (!isRandom) {
+      const questions = await this.prisma.question.findMany({
         where: {
           bankId: examId,
           correctOptionId: { not: null },
-        },
-        include: {
-          options: true,
-          images: { orderBy: { sort: "asc" } },
-        },
-      }) as QuestionWithRelations[]
-
-      questions = shuffle(questions).slice(0, take)
-    } else {
-      // Deterministik olduqda DB səviyyəsində orderBy və take tətbiq et
-      questions = await this.prisma.question.findMany({
-        where: {
-          bankId: examId,
-          correctOptionId: { not: null },
-        },
-        include: {
-          options: true,
-          images: { orderBy: { sort: "asc" } },
         },
         orderBy: { sort: "asc" },
         take,
-      }) as QuestionWithRelations[]
-    }
+        include: {
+          options: true,
+          images: { orderBy: { sort: "asc" } },
+        },
+      }) as Q[]
 
-    return questions.map(q => ({
-      id: q.id,
-      text: q.text,
-      images: q.images,
-      options: isRandom ? shuffle(q.options) : q.options,
-    }))
+      return questions.map(q => ({
+        id: q.id,
+        text: q.text,
+        images: q.images,
+        options: q.options,
+      }))
+    } else {
+      const ids: { id: string }[] = await this.prisma.$queryRaw`
+      SELECT id
+      FROM "Question"
+      WHERE "bankId" = ${examId} AND "correctOptionId" IS NOT NULL
+      ORDER BY random()
+      LIMIT ${take}
+    `
+
+      const idList = ids.map(r => r.id)
+      if (idList.length === 0) return []
+
+      const questions = await this.prisma.question.findMany({
+        where: { id: { in: idList } },
+        include: {
+          options: true,
+          images: { orderBy: { sort: "asc" } },
+        },
+      }) as Q[]
+
+      const byId = new Map(questions.map(q => [q.id, q]))
+      const ordered = idList.map(id => byId.get(id)).filter(Boolean) as Q[]
+
+      return ordered.map(q => ({
+        id: q.id,
+        text: q.text,
+        images: q.images,
+        options: shuffle(q.options), 
+      }))
+    }
   }
+
 }
