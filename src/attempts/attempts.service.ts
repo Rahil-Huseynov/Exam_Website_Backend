@@ -234,17 +234,52 @@ export class AttemptsService {
     let questions: any[] = []
 
     if (existing.length === 0) {
-      const questionsAll = await this.prisma.question.findMany({
-        where: { bankId: attempt.bankId },
+      const bankFull = await this.prisma.questionBank.findUnique({
+        where: { id: attempt.bankId },
         select: {
-          id: true,
-          text: true,
-          images: { select: { url: true, sort: true } },
-          options: { select: { id: true, text: true } },
+          random: true,
+          questionCount: true,
         },
       })
 
-      const picked = shuffle(questionsAll).slice(0, total)
+      const total = bankFull?.questionCount || 1
+
+      let questionsAll: any[] = []
+
+      if (!bankFull?.random) {
+        questionsAll = await this.prisma.question.findMany({
+          where: {
+            bankId: attempt.bankId,
+            correctOptionId: { not: null },
+          },
+          orderBy: { sort: "asc" },
+          take: total,
+          select: {
+            id: true,
+            text: true,
+            images: { select: { url: true, sort: true } },
+            options: { select: { id: true, text: true } },
+          },
+        })
+      } else {
+        const all = await this.prisma.question.findMany({
+          where: {
+            bankId: attempt.bankId,
+            correctOptionId: { not: null },
+          },
+          select: {
+            id: true,
+            text: true,
+            images: { select: { url: true, sort: true } },
+            options: { select: { id: true, text: true } },
+          },
+        })
+
+        questionsAll = shuffle(all).slice(0, total)
+      }
+
+
+      const picked = questionsAll
 
       await this.prisma.attemptQuestion.createMany({
         data: picked.map((q, idx) => ({
