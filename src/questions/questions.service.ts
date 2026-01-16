@@ -121,6 +121,11 @@ function normalizeAndPersistImageUrl(raw: string) {
   return null
 }
 
+// Type helper to avoid TS2339 for .options/.images
+type QuestionWithRelations = Prisma.QuestionGetPayload<{
+  include: { options: true; images: true }
+}>
+
 @Injectable()
 export class QuestionsService {
   constructor(private prisma: PrismaService) { }
@@ -815,29 +820,46 @@ export class QuestionsService {
 
     const take = bank.questionCount ?? 25
 
-    let questions = await this.prisma.question.findMany({
-      where: {
-        bankId: examId,
-        correctOptionId: { not: null },
-      },
-      include: {
-        options: true,
-        images: { orderBy: { sort: "asc" } },
-      },
-      orderBy: { sort: "asc" }, 
-    })
+    // Güvənli boolean yoxlaması (string kimi gəlməsin deyə)
+    const isRandom = bank.random === true
 
-    if (bank.random) {
-      questions = shuffle(questions) 
+    let questions: QuestionWithRelations[] = []
+
+    if (isRandom) {
+      // Random olduqda bütün uyğun sualları alıb JS tərəfdən qarışdır və slice et
+      questions = await this.prisma.question.findMany({
+        where: {
+          bankId: examId,
+          correctOptionId: { not: null },
+        },
+        include: {
+          options: true,
+          images: { orderBy: { sort: "asc" } },
+        },
+      }) as QuestionWithRelations[]
+
+      questions = shuffle(questions).slice(0, take)
+    } else {
+      // Deterministik olduqda DB səviyyəsində orderBy və take tətbiq et
+      questions = await this.prisma.question.findMany({
+        where: {
+          bankId: examId,
+          correctOptionId: { not: null },
+        },
+        include: {
+          options: true,
+          images: { orderBy: { sort: "asc" } },
+        },
+        orderBy: { sort: "asc" },
+        take,
+      }) as QuestionWithRelations[]
     }
-
-    questions = questions.slice(0, take)
 
     return questions.map(q => ({
       id: q.id,
       text: q.text,
       images: q.images,
-      options: bank.random ? shuffle(q.options) : q.options,
+      options: isRandom ? shuffle(q.options) : q.options,
     }))
   }
 }
