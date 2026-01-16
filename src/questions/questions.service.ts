@@ -842,12 +842,9 @@ export class QuestionsService {
         options: true,
         images: { orderBy: { sort: "asc" } },
       },
-      orderBy: bank.random
-        ? undefined                 
-        : { createdAt: "asc" },     
+      orderBy: { createdAt: "asc" }, 
     })
 
-    // 🎲 Random lazımdırsa qarışdır
     if (bank.random) {
       questions = shuffle(questions)
     }
@@ -868,6 +865,7 @@ export class QuestionsService {
       })),
     }))
   }
+
 
 
 }
