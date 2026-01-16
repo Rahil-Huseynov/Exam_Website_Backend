@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsInt, IsNumber, IsOptional, IsString, Min } from "class-validator";
+import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, Min } from "class-validator";
 
 export class CreateExamDto {
   @IsString()
@@ -29,4 +29,8 @@ export class CreateExamDto {
   @IsInt()
   @Min(1)
   questionCount?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  random?: boolean
 }

@@ -261,13 +261,13 @@ export class QuestionsService {
       throw new BadRequestException("Year is invalid")
     }
 
-    const priceNumber = typeof dto.price === "string" ? Number(dto.price) : Number(dto.price)
+    const priceNumber = Number(dto.price)
     if (!Number.isFinite(priceNumber) || priceNumber < 0) {
       throw new BadRequestException("Price is invalid")
     }
 
-    const qcRaw = (dto as any).questionCount
-    const questionCount = qcRaw === undefined || qcRaw === null ? undefined : Number(qcRaw)
+    const questionCount =
+      dto.questionCount !== undefined ? Number(dto.questionCount) : undefined
 
     if (questionCount !== undefined) {
       if (!Number.isInteger(questionCount) || questionCount < 1) {
@@ -275,10 +275,14 @@ export class QuestionsService {
       }
     }
 
-    const uni = await this.prisma.university.findUnique({ where: { id: dto.universityId } })
+    const uni = await this.prisma.university.findUnique({
+      where: { id: dto.universityId },
+    })
     if (!uni) throw new BadRequestException("University not found")
 
-    const subj = await this.prisma.subject.findUnique({ where: { id: dto.subjectId } })
+    const subj = await this.prisma.subject.findUnique({
+      where: { id: dto.subjectId },
+    })
     if (!subj) throw new BadRequestException("Subject not found")
 
     const anyTopic = await this.ensureAnyTopicForUniversity(dto.universityId)
@@ -289,11 +293,13 @@ export class QuestionsService {
         title,
         year,
         price: new Prisma.Decimal(priceNumber),
+
+        random: dto.random ?? true,
+        questionCount: questionCount ?? 25,
+
         universityId: dto.universityId,
         subjectId: dto.subjectId,
         topicId: anyTopic.id,
-
-        ...(questionCount !== undefined ? { questionCount } : {}),
       },
       include: {
         university: true,
@@ -307,15 +313,14 @@ export class QuestionsService {
       title: created.title,
       year: created.year,
       price: Number(created.price),
-
-      questionCount: created.questionCount ?? 1,
-
+      random: created.random,
+      questionCount: created.questionCount,
       questionsTotal: created._count.questions,
-
       university: created.university,
       subject: created.subject,
     }
   }
+
 
   async getExams(filter: { universityId?: string; subjectId?: string; year?: number; search?: string; page?: number; limit?: number }) {
     const page = filter.page ?? 1
@@ -354,6 +359,7 @@ export class QuestionsService {
       price: Number(b.price),
 
       questionCount: b.questionCount ?? 1,
+      random: b.random,
 
       questionsTotal: b._count.questions,
       totalQuestions: b._count.questions,
@@ -366,7 +372,7 @@ export class QuestionsService {
 
   async updateBank(
     bankId: string,
-    body: { title?: string; year?: number | string; price?: number | string; questionCount?: number | string },
+    body: { title?: string; year?: number | string; price?: number | string; questionCount?: number | string; random?: boolean },
   ) {
     const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } })
     if (!bank) throw new BadRequestException("Exam/Bank not found")
@@ -402,6 +408,11 @@ export class QuestionsService {
       data.questionCount = qc
     }
 
+    if (body.random !== undefined) {
+      data.random = Boolean(body.random)
+    }
+
+
     const updated = await this.prisma.questionBank.update({
       where: { id: bankId },
       data,
@@ -419,7 +430,7 @@ export class QuestionsService {
       price: Number(updated.price),
 
       questionCount: updated.questionCount ?? 1,
-
+      random: updated.random,
       questionsTotal: updated._count.questions,
 
       university: updated.university,
@@ -815,21 +826,48 @@ export class QuestionsService {
   }
 
   async getExamQuestions(examId: string) {
-    const qs = await this.prisma.question.findMany({
-      where: { bankId: examId, correctOptionId: { not: null } },
+    const bank = await this.prisma.questionBank.findUnique({
+      where: { id: examId },
+    })
+    if (!bank) throw new BadRequestException("Exam not found")
+
+    const takeCount = bank.questionCount ?? 25
+
+    let questions = await this.prisma.question.findMany({
+      where: {
+        bankId: examId,
+        correctOptionId: { not: null },
+      },
       include: {
         options: true,
         images: { orderBy: { sort: "asc" } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: bank.random
+        ? undefined                 
+        : { createdAt: "asc" },     
     })
 
-    return qs.map((q) => ({
+    // 🎲 Random lazımdırsa qarışdır
+    if (bank.random) {
+      questions = shuffle(questions)
+    }
+
+    questions = questions.slice(0, takeCount)
+
+    return questions.map((q) => ({
       id: q.id,
       text: q.text,
-      images: q.images.map((im) => ({ id: im.id, url: im.url, sort: im.sort })),
-      options: shuffle(q.options).map((o) => ({ id: o.id, text: o.text })),
+      images: q.images.map((im) => ({
+        id: im.id,
+        url: im.url,
+        sort: im.sort,
+      })),
+      options: shuffle(q.options).map((o) => ({
+        id: o.id,
+        text: o.text,
+      })),
     }))
   }
+
 
 }

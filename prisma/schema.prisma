@@ -172,11 +172,11 @@ model QuestionBank {
   topicId String
   topic   Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
   questionCount Int @default(25) 
+  random Boolean @default(true)   
   pdfFiles   PdfImport[]
   questions  Question[]
   attempts   Attempt[]
   examTokens ExamToken[]
-
   createdAt           DateTime             @default(now())
   balanceTransactions BalanceTransaction[]
 
