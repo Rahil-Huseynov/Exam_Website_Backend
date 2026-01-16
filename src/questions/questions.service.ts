@@ -15,7 +15,7 @@ function shuffle<T>(arr: T[]) {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
-    ;[a[i], a[j]] = [a[j], a[i]]
+      ;[a[i], a[j]] = [a[j], a[i]]
   }
   return a
 }
@@ -377,7 +377,13 @@ export class QuestionsService {
 
   async updateBank(
     bankId: string,
-    body: { title?: string; year?: number | string; price?: number | string; questionCount?: number | string; random?: boolean },
+    body: {
+      title?: string
+      year?: number | string
+      price?: number | string
+      questionCount?: number | string
+      random?: boolean
+    },
   ) {
     const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } })
     if (!bank) throw new BadRequestException("Exam/Bank not found")
@@ -409,18 +415,17 @@ export class QuestionsService {
 
     if (body.questionCount !== undefined) {
       const qc = Number(body.questionCount)
-      if (!Number.isInteger(qc) || qc < 1) throw new BadRequestException("questionCount is invalid")
+      if (!Number.isInteger(qc) || qc < 1)
+        throw new BadRequestException("questionCount is invalid")
       data.questionCount = qc
     }
 
     if (body.random !== undefined) {
-      if (typeof body.random === "boolean") {
-        data.random = body.random
-      } else if (typeof body.random === "string") {
-        data.random = body.random === "true"
-      }
+      data.random =
+        typeof body.random === "boolean"
+          ? body.random
+          : body.random === "true"
     }
-
 
     const updated = await this.prisma.questionBank.update({
       where: { id: bankId },
@@ -429,6 +434,14 @@ export class QuestionsService {
         university: true,
         subject: true,
         _count: { select: { questions: true } },
+
+        questions: {
+          orderBy: { sort: "asc" },
+          include: {
+            options: true,
+            images: { orderBy: { sort: "asc" } },
+          },
+        },
       },
     })
 
@@ -444,8 +457,11 @@ export class QuestionsService {
 
       university: updated.university,
       subject: updated.subject,
+
+      questions: updated.questions,
     }
   }
+
 
   async deleteBank(bankId: string) {
     const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } })
@@ -811,7 +827,7 @@ export class QuestionsService {
         options: true,
         images: { orderBy: { sort: "asc" } },
       },
-      orderBy: { sort: "asc" }, 
+      orderBy: { sort: "asc" },
     })
 
     if (bank.random) {
