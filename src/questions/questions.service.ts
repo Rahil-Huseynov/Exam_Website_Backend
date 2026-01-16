@@ -9,14 +9,19 @@ import * as fs from "fs"
 import * as path from "path"
 import * as crypto from "crypto"
 
+
+
 function shuffle<T>(arr: T[]) {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
-      ;[a[i], a[j]] = [a[j], a[i]]
+    ;[a[i], a[j]] = [a[j], a[i]]
   }
   return a
 }
+
+const norm = (s?: string) => (s || "").trim().replace(/\s+/g, " ")
+const key = (s?: string) => norm(s).toLowerCase()
 
 function toTrimmedString(v: unknown) {
   return typeof v === "string" ? v.trim() : ""
@@ -453,29 +458,53 @@ export class QuestionsService {
   // ---------------- Questions listing with images ----------------
   async listBankQuestions(bankId: string) {
     const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } })
-    if (!bank) throw new BadRequestException("Exam/Bank not found")
+    if (!bank) throw new BadRequestException("Bank not found")
 
-    const qs = await this.prisma.question.findMany({
+    const questions = await this.prisma.question.findMany({
       where: { bankId },
+      orderBy: { sort: "asc" },
       include: {
         options: true,
         images: { orderBy: { sort: "asc" } },
       },
-      orderBy: { createdAt: "desc" },
     })
 
     return {
       bankId,
-      questions: qs.map((q) => ({
-        id: q.id,
-        text: q.text,
-        correctAnswerText: q.correctAnswerText,
-        correctOptionId: q.correctOptionId,
-        options: q.options.map((o) => ({ id: o.id, text: o.text })),
-        images: q.images.map((im) => ({ id: im.id, url: im.url, sort: im.sort })),
-      })),
+      questions,
     }
   }
+
+  async reorderQuestions(bankId: string, orderedIds: string[]) {
+    if (!orderedIds?.length) {
+      throw new BadRequestException("orderedIds boş ola bilməz")
+    }
+
+    const qs = await this.prisma.question.findMany({
+      where: { id: { in: orderedIds } },
+      select: { id: true, bankId: true },
+    })
+
+    if (qs.length !== orderedIds.length) {
+      throw new BadRequestException("Bəzi suallar tapılmadı")
+    }
+
+    if (qs.some(q => q.bankId !== bankId)) {
+      throw new BadRequestException("Sual başqa banka aiddir")
+    }
+
+    await this.prisma.$transaction(async tx => {
+      for (let i = 0; i < orderedIds.length; i++) {
+        await tx.question.update({
+          where: { id: orderedIds[i] },
+          data: { sort: i },
+        })
+      }
+    })
+
+    return { ok: true }
+  }
+
 
   // ---------------- Multi-image actions ----------------
   async addQuestionImages(questionId: string, imageUrls: string[]) {
@@ -524,189 +553,127 @@ export class QuestionsService {
   }
 
   // ---------------- Create question (supports imageUrls[]) ----------------
-  async createQuestion(bankId: string, dto: CreateQuestionDto & { imageUrls?: string[] }) {
+  async createQuestion(
+    bankId: string,
+    dto: CreateQuestionDto & { imageUrls?: string[] },
+  ) {
     const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } })
-    if (!bank) throw new BadRequestException("Exam/Bank not found")
+    if (!bank) throw new BadRequestException("Bank not found")
 
-    const qText = normText(dto.text)
-    if (!qText) throw new BadRequestException("Question text is required")
+    const text = norm(dto.text)
+    if (!text) throw new BadRequestException("Question text is required")
 
-    const rawOptions = (dto.options || []).map((o) => normText(o.text)).filter(Boolean)
-    if (rawOptions.length < 2) throw new BadRequestException("Minimum 2 variant olmalıdır.")
+    const rawOpts = (dto.options || []).map(o => norm(o.text)).filter(Boolean)
+    if (rawOpts.length < 2) throw new BadRequestException("Minimum 2 variant")
 
     const seen = new Set<string>()
     const options: string[] = []
-    for (const ot of rawOptions.slice(0, 5)) {
-      const k = normKey(ot)
-      if (seen.has(k)) continue
-      seen.add(k)
-      options.push(ot)
-    }
-    if (options.length < 2) throw new BadRequestException("Minimum 2 unikal variant olmalıdır.")
-
-    let correctInOptions: string | null = null
-    const desiredCorrect = dto.correctAnswerText ? normText(dto.correctAnswerText) : ""
-    if (desiredCorrect) {
-      const found = options.find((ot) => normKey(ot) === normKey(desiredCorrect))
-      if (!found) throw new BadRequestException("Doğru cavab mətni variantların içində olmalıdır.")
-      correctInOptions = found
+    for (const o of rawOpts.slice(0, 5)) {
+      if (!seen.has(key(o))) {
+        seen.add(key(o))
+        options.push(o)
+      }
     }
 
-    const imageUrlsRaw = (dto.imageUrls || []).map((u) => String(u || "").trim()).filter(Boolean)
-    const imageUrls = imageUrlsRaw
-      .map((u) => normalizeAndPersistImageUrl(u))
-      .filter((x): x is string => !!x)
+    const correctText = dto.correctAnswerText ? norm(dto.correctAnswerText) : null
+    if (correctText && !options.find(o => key(o) === key(correctText))) {
+      throw new BadRequestException("Correct answer option-lar içində olmalıdır")
+    }
 
-    const created = await this.prisma.$transaction(async (tx) => {
-      const question = await tx.question.create({
+    const last = await this.prisma.question.findFirst({
+      where: { bankId },
+      orderBy: { sort: "desc" },
+      select: { sort: true },
+    })
+
+    const sort = (last?.sort ?? -1) + 1
+
+    const created = await this.prisma.$transaction(async tx => {
+      const q = await tx.question.create({
         data: {
           bankId,
-          text: qText,
-          correctAnswerText: correctInOptions,
-          correctOptionId: null,
-          images: imageUrls.length
-            ? { create: imageUrls.map((url, i) => ({ url, urlHash: sha256Hex(url), sort: i })) }
-            : undefined,
+          text,
+          sort,
+          correctAnswerText: correctText,
         },
-        include: { options: true, images: true },
       })
 
       let correctOptionId: string | null = null
 
-      for (const ot of options) {
-        const createdOpt = await tx.questionOption.create({
-          data: { questionId: question.id, text: ot },
+      for (const opt of options) {
+        const o = await tx.questionOption.create({
+          data: { questionId: q.id, text: opt },
         })
-
-        if (correctInOptions && normKey(createdOpt.text) === normKey(correctInOptions)) {
-          correctOptionId = createdOpt.id
+        if (correctText && key(o.text) === key(correctText)) {
+          correctOptionId = o.id
         }
       }
 
       if (correctOptionId) {
         await tx.question.update({
-          where: { id: question.id },
+          where: { id: q.id },
           data: { correctOptionId },
         })
       }
 
-      const full = await tx.question.findUnique({
-        where: { id: question.id },
-        include: { options: true, images: { orderBy: { sort: "asc" } } },
+      return tx.question.findUnique({
+        where: { id: q.id },
+        include: { options: true },
       })
-
-      return full!
     })
 
-    return {
-      id: created.id,
-      text: created.text,
-      correctAnswerText: created.correctAnswerText,
-      correctOptionId: created.correctOptionId,
-      options: created.options.map((o) => ({ id: o.id, text: o.text })),
-      images: created.images.map((im) => ({ id: im.id, url: im.url, sort: im.sort })),
-    }
+    return created
   }
 
+
   // ---------------- Update question (text/options/correct), images ayrı endpoint ilə ----------------
+
   async updateQuestion(questionId: string, dto: UpdateQuestionDto) {
-    const existing = await this.prisma.question.findUnique({
+    const q = await this.prisma.question.findUnique({
       where: { id: questionId },
       include: { options: true },
     })
-    if (!existing) throw new BadRequestException("Question not found")
+    if (!q) throw new BadRequestException("Question not found")
 
-    const newText = dto.text !== undefined ? normText(dto.text) : undefined
-    const optionsProvided = Array.isArray(dto.options)
-    const newCorrectText = dto.correctAnswerText !== undefined ? normText(dto.correctAnswerText) : undefined
+    const newText = dto.text !== undefined ? norm(dto.text) : undefined
+    const newCorrect = dto.correctAnswerText !== undefined ? norm(dto.correctAnswerText) : undefined
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      if (newText !== undefined) {
-        if (!newText) throw new BadRequestException("Question text cannot be empty")
-        await tx.question.update({ where: { id: questionId }, data: { text: newText } })
-      }
-
-      if (optionsProvided) {
-        const raw = (dto.options || []).map((o) => normText(o.text)).filter(Boolean)
-        if (raw.length < 2) throw new BadRequestException("Minimum 2 variant olmalıdır.")
-
-        const seen = new Set<string>()
-        const finalOptions: string[] = []
-        for (const ot of raw.slice(0, 5)) {
-          const k = normKey(ot)
-          if (seen.has(k)) continue
-          seen.add(k)
-          finalOptions.push(ot)
-        }
-        if (finalOptions.length < 2) throw new BadRequestException("Minimum 2 unikal variant olmalıdır.")
-
-        await tx.questionOption.deleteMany({ where: { questionId } })
-
-        let createdCorrectOptionId: string | null = null
-
-        for (const ot of finalOptions) {
-          const createdOpt = await tx.questionOption.create({ data: { questionId, text: ot } })
-          if (newCorrectText && normKey(createdOpt.text) === normKey(newCorrectText)) {
-            createdCorrectOptionId = createdOpt.id
-          }
-        }
-
-        if (newCorrectText && !createdCorrectOptionId) {
-          throw new BadRequestException("correctAnswerText option-ların içində olmalıdır.")
-        }
-
+    return this.prisma.$transaction(async tx => {
+      if (newText) {
         await tx.question.update({
           where: { id: questionId },
-          data: {
-            correctAnswerText: newCorrectText !== undefined ? (newCorrectText || null) : existing.correctAnswerText,
-            correctOptionId: newCorrectText !== undefined ? (createdCorrectOptionId || null) : existing.correctOptionId,
-          },
+          data: { text: newText },
         })
-      } else {
-        if (newCorrectText !== undefined) {
-          if (newCorrectText) {
-            const match = existing.options.find((o) => normKey(o.text) === normKey(newCorrectText))
-            if (!match) throw new BadRequestException("correctAnswerText mövcud variantların içində olmalıdır.")
-            await tx.question.update({
-              where: { id: questionId },
-              data: { correctAnswerText: newCorrectText, correctOptionId: match.id },
-            })
-          } else {
-            await tx.question.update({
-              where: { id: questionId },
-              data: { correctAnswerText: null, correctOptionId: null },
-            })
-          }
+      }
+
+      if (newCorrect !== undefined) {
+        if (newCorrect) {
+          const match = q.options.find(o => key(o.text) === key(newCorrect))
+          if (!match) throw new BadRequestException("Correct option tapılmadı")
+
+          await tx.question.update({
+            where: { id: questionId },
+            data: {
+              correctAnswerText: newCorrect,
+              correctOptionId: match.id,
+            },
+          })
+        } else {
+          await tx.question.update({
+            where: { id: questionId },
+            data: { correctAnswerText: null, correctOptionId: null },
+          })
         }
       }
 
-      const full = await tx.question.findUnique({
+      return tx.question.findUnique({
         where: { id: questionId },
-        include: { options: true, images: { orderBy: { sort: "asc" } } },
+        include: { options: true, images: true },
       })
-
-      return full!
     })
-
-    return {
-      id: updated.id,
-      text: updated.text,
-      correctAnswerText: updated.correctAnswerText,
-      correctOptionId: updated.correctOptionId,
-      options: updated.options.map((o) => ({ id: o.id, text: o.text })),
-      images: updated.images.map((im) => ({ id: im.id, url: im.url, sort: im.sort })),
-    }
   }
 
   async deleteQuestion(questionId: string) {
-    const q = await this.prisma.question.findUnique({
-      where: { id: questionId },
-      include: { images: true },
-    })
-    if (!q) throw new BadRequestException("Question not found")
-
-    for (const im of q.images) tryDeletePublicUpload(im.url)
-
     await this.prisma.question.delete({ where: { id: questionId } })
     return { ok: true }
   }
@@ -830,59 +797,34 @@ export class QuestionsService {
   }
 
   async getExamQuestions(examId: string) {
-    const bank = await this.prisma.questionBank.findUnique({
-      where: { id: examId },
-    })
+    const bank = await this.prisma.questionBank.findUnique({ where: { id: examId } })
+    if (!bank) throw new BadRequestException("Exam not found")
 
-    if (!bank) {
-      throw new BadRequestException("Exam not found")
-    }
+    const take = bank.questionCount ?? 25
 
-    const takeCount = bank.questionCount ?? 25
-
-    let questions = (await this.prisma.question.findMany({
+    let questions = await this.prisma.question.findMany({
       where: {
         bankId: examId,
         correctOptionId: { not: null },
       },
       include: {
         options: true,
-        images: {
-          orderBy: { sort: "asc" },
-        },
+        images: { orderBy: { sort: "asc" } },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
-    })) as Prisma.QuestionGetPayload<{
-      include: {
-        options: true
-        images: true
-      }
-    }>[]
+      orderBy: { sort: "asc" }, 
+    })
 
     if (bank.random) {
       questions = shuffle(questions)
     }
 
-    questions = questions.slice(0, takeCount)
+    questions = questions.slice(0, take)
 
-    return questions.map((q) => ({
+    return questions.map(q => ({
       id: q.id,
       text: q.text,
-      images: q.images.map((im) => ({
-        id: im.id,
-        url: im.url,
-        sort: im.sort,
-      })),
-      options: (bank.random ? shuffle(q.options) : q.options).map((o) => ({
-        id: o.id,
-        text: o.text,
-      })),
+      images: q.images,
+      options: bank.random ? shuffle(q.options) : q.options,
     }))
   }
-
-
-
-
 }

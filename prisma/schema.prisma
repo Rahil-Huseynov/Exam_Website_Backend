@@ -211,6 +211,7 @@ model Question {
   text        String
   explanation String?
   difficulty  Int     @default(1)
+  sort Int @default(0)
 
   correctOptionId   String?
   correctOption     QuestionOption? @relation("CorrectOption", fields: [correctOptionId], references: [id], onDelete: SetNull)
