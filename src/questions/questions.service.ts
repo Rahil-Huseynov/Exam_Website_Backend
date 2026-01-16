@@ -409,7 +409,11 @@ export class QuestionsService {
     }
 
     if (body.random !== undefined) {
-      data.random = Boolean(body.random)
+      if (typeof body.random === "boolean") {
+        data.random = body.random
+      } else if (typeof body.random === "string") {
+        data.random = body.random === "true"
+      }
     }
 
 
@@ -842,7 +846,7 @@ export class QuestionsService {
         options: true,
         images: { orderBy: { sort: "asc" } },
       },
-      orderBy: { createdAt: "asc" }, 
+      orderBy: { createdAt: "asc" },
     })
 
     if (bank.random) {
