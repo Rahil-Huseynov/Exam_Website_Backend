@@ -27,4 +27,10 @@ export class UpdateExamDto {
     @IsBoolean()
     random?: boolean
 
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber()
+    @Min(0)
+    durationMinutes?: number
+
 }

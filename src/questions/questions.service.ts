@@ -292,7 +292,7 @@ export class QuestionsService {
         title,
         year,
         price: new Prisma.Decimal(priceNumber),
-
+        durationMinutes: dto.durationMinutes,
         random: dto.random ?? true,
         questionCount: questionCount ?? 25,
 
@@ -312,6 +312,7 @@ export class QuestionsService {
       title: created.title,
       year: created.year,
       price: Number(created.price),
+      durationMinutes: created.durationMinutes,
       random: created.random,
       questionCount: created.questionCount,
       questionsTotal: created._count.questions,
@@ -356,7 +357,7 @@ export class QuestionsService {
       title: b.title,
       year: b.year,
       price: Number(b.price),
-
+      durationMinutes: b.durationMinutes,
       questionCount: b.questionCount ?? 1,
       random: b.random,
 
@@ -371,7 +372,7 @@ export class QuestionsService {
 
   async updateBank(
     bankId: string,
-    body: { title?: string; year?: number | string; price?: number | string; questionCount?: number | string; random?: boolean },
+    body: { title?: string; year?: number | string; price?: number | string; questionCount?: number | string; random?: boolean; durationMinutes?: number },
   ) {
     const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } })
     if (!bank) throw new BadRequestException("Exam/Bank not found")
@@ -407,10 +408,17 @@ export class QuestionsService {
       data.questionCount = qc
     }
 
+    if (body.durationMinutes !== undefined) {
+      const durationMinutes = Number(body.durationMinutes)
+      if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
+        throw new BadRequestException("durationMinutes is invalid")
+      }
+      data.durationMinutes = durationMinutes
+    }
+
     if (body.random !== undefined) {
       data.random = Boolean(body.random)
     }
-
 
     const updated = await this.prisma.questionBank.update({
       where: { id: bankId },
@@ -427,7 +435,7 @@ export class QuestionsService {
       title: updated.title,
       year: updated.year,
       price: Number(updated.price),
-
+      durationMinutes: Number(updated.durationMinutes),
       questionCount: updated.questionCount ?? 1,
       random: updated.random,
       questionsTotal: updated._count.questions,

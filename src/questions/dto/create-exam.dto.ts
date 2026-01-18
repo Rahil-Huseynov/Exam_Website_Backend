@@ -33,4 +33,10 @@ export class CreateExamDto {
   @IsOptional()
   @IsBoolean()
   random?: boolean
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  durationMinutes
 }

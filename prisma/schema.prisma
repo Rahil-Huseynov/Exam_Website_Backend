@@ -161,6 +161,7 @@ model QuestionBank {
   title String
   year  Int
   price Decimal @db.Decimal(10, 2)
+  durationMinutes Int @default(60)
 
   universityId String
   university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
@@ -288,7 +289,7 @@ model Attempt {
   finishedAt DateTime?
   score      Int           @default(0)
   total      Int           @default(0)
-
+  expiresAt  DateTime?
   balanceTransactions BalanceTransaction[]
   attemptQuestions    AttemptQuestion[]
   answers             AttemptAnswer[]
