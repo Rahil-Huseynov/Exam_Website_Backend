@@ -21,7 +21,7 @@ export class CreateQuestionDto {
   correctAnswerText?: string;
 
   @IsOptional()
-  @IsString()
-  imageUrl?: string;
-
+  @IsArray()
+  @IsString({ each: true })
+  imageUrls?: string[];
 }

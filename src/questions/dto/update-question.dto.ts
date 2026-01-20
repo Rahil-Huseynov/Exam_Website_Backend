@@ -20,4 +20,9 @@ export class UpdateQuestionDto {
   @IsOptional()
   @IsString()
   correctAnswerText?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  imageUrls?: string[];
 }

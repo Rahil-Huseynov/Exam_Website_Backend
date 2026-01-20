@@ -1,18 +1,14 @@
-version: "3.8"
-
 services:
   pg_main2:
     image: postgres:13
     container_name: project2_pg_main2
     restart: unless-stopped
     ports:
-      - "5545:5432"   # ba?qa layih?d?n f?rqli port
+      - "5545:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: "123"
       POSTGRES_DB: nest
-    networks:
-      - project2_net
     volumes:
       - project2_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -34,50 +30,18 @@ services:
       POSTGRES_DB: nest
       BACKUP_KEEP_DAYS: "3"
       BACKUP_INTERVAL_SECONDS: "86400"
-    networks:
-      - project2_net
     volumes:
-      - /mnt/DISK_1TB/Backup/ExamWebsite:/backups         
-      - ./uploads:/uploads:ro
       - project2_pgdata:/var/lib/postgresql/data:ro
+      - ./uploads:/uploads:ro
+      - /mnt/DISK_1TB/Backup/ExamWebsite:/backups
     command: >
       bash -lc '
-        set -e;
-
-        echo "[project2-backup] started";
-        mkdir -p /backups;
-
         while true; do
           TS=$$(date +%Y%m%d_%H%M%S);
-          DUMP="/backups/nest_$${TS}.sql";
-          ARCH="/backups/project2_backup_$${TS}.tar.gz";
-
-          echo "[project2-backup] pg_dump -> $$DUMP";
-          PGPASSWORD="$${POSTGRES_PASSWORD}" pg_dump \
-            -h pg_main2 \
-            -U "$${POSTGRES_USER}" \
-            -d "$${POSTGRES_DB}" > "$$DUMP";
-
-          echo "[project2-backup] pack -> $$ARCH";
-          tar -czf "$$ARCH" \
-            -C /backups "$$(basename "$$DUMP")" \
-            -C /uploads . \
-            -C /var/lib/postgresql/data .;
-
-          rm -f "$$DUMP";
-
-          echo "[project2-backup] cleanup older than $${BACKUP_KEEP_DAYS} days";
-          find /backups -type f -name "project2_backup_*.tar.gz" -mtime +$${BACKUP_KEEP_DAYS} -delete || true;
-
-          echo "[project2-backup] sleeping $${BACKUP_INTERVAL_SECONDS}s";
+          PGPASSWORD="$${POSTGRES_PASSWORD}" pg_dump -h pg_main2 -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" > /backups/nest_$${TS}.sql;
           sleep "$${BACKUP_INTERVAL_SECONDS}";
         done
       '
 
-networks:
-  project2_net:
-    name: project2_net
-
 volumes:
   project2_pgdata:
-    name: project2_pgdata
