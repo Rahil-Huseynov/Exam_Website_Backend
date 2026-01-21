@@ -455,17 +455,21 @@ export class QuestionsService {
 
   // ---------------- Questions listing with images ----------------
   async listBankQuestions(bankId: string) {
-    const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } })
-    if (!bank) throw new BadRequestException("Exam/Bank not found")
+    const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } });
+    if (!bank) throw new BadRequestException('Exam/Bank not found');
 
     const qs = await this.prisma.question.findMany({
       where: { bankId },
       include: {
-        options: true,
-        images: { orderBy: { sort: "asc" } },
+        options: {
+          include: {
+            images: { orderBy: { sort: 'asc' } },
+          },
+        },
+        images: { orderBy: { sort: 'asc' } },
       },
-      orderBy: { sort: "asc" },
-    })
+      orderBy: { sort: 'asc' },
+    });
 
     return {
       bankId,
@@ -474,10 +478,14 @@ export class QuestionsService {
         text: q.text,
         correctAnswerText: q.correctAnswerText,
         correctOptionId: q.correctOptionId,
-        options: q.options.map((o) => ({ id: o.id, text: o.text })),
+        options: q.options.map((o) => ({
+          id: o.id,
+          text: o.text,
+          images: o.images.map((im) => ({ id: im.id, url: im.url, sort: im.sort })),
+        })),
         images: q.images.map((im) => ({ id: im.id, url: im.url, sort: im.sort })),
       })),
-    }
+    };
   }
 
   // ---------------- Multi-image actions ----------------
@@ -620,112 +628,236 @@ export class QuestionsService {
   }
 
   // ---------------- Update question (text/options/correct), images ayrı endpoint ilə ----------------
-  async updateQuestion(questionId: string, dto: UpdateQuestionDto & { sort?: number }) {
+  async updateQuestion(
+    questionId: string,
+    dto: UpdateQuestionDto & { sort?: number | string },
+  ) {
     const existing = await this.prisma.question.findUnique({
       where: { id: questionId },
-      include: { options: true },
-    })
-    if (!existing) throw new BadRequestException("Question not found")
+      include: {
+        options: { include: { images: true } },
+        images: true,
+      },
+    });
 
-    const newText = dto.text !== undefined ? normText(dto.text) : undefined
-    const optionsProvided = Array.isArray(dto.options)
-    const newCorrectText = dto.correctAnswerText !== undefined ? normText(dto.correctAnswerText) : undefined
-    const newSort = dto.sort !== undefined ? Number(dto.sort) : undefined
-
-    if (newSort !== undefined && (!Number.isInteger(newSort) || newSort < 0)) {
-      throw new BadRequestException("Sort must be a non-negative integer")
+    if (!existing) {
+      throw new BadRequestException("Question not found");
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
+    const newText = dto.text !== undefined ? normText(dto.text) : undefined;
+    const optionsProvided = Array.isArray(dto.options);
+    const newCorrectText = dto.correctAnswerText !== undefined ? normText(dto.correctAnswerText) : undefined;
+    const newSort = dto.sort !== undefined ? Number(dto.sort) : undefined;
+    const shouldReplaceImages = "imageUrls" in dto;
+
+    if (newSort !== undefined && (!Number.isInteger(newSort) || newSort < 0)) {
+      throw new BadRequestException("Sort must be a non-negative integer");
+    }
+
+    if (newText !== undefined && !newText) {
+      throw new BadRequestException("Question text cannot be empty");
+    }
+
+    const updatedQuestion = await this.prisma.$transaction(async (tx) => {
       if (newText !== undefined) {
-        if (!newText) throw new BadRequestException("Question text cannot be empty")
-        await tx.question.update({ where: { id: questionId }, data: { text: newText } })
+        await tx.question.update({
+          where: { id: questionId },
+          data: { text: newText },
+        });
       }
 
       if (newSort !== undefined) {
-        await tx.question.update({ where: { id: questionId }, data: { sort: newSort } })
-      }
-
-      if (optionsProvided) {
-        const raw = (dto.options || []).map((o) => normText(o.text)).filter(Boolean)
-        if (raw.length < 2) throw new BadRequestException("Minimum 2 variant olmalıdır.")
-
-        const seen = new Set<string>()
-        const finalOptions: string[] = []
-        for (const ot of raw.slice(0, 5)) {
-          const k = normKey(ot)
-          if (seen.has(k)) continue
-          seen.add(k)
-          finalOptions.push(ot)
-        }
-        if (finalOptions.length < 2) throw new BadRequestException("Minimum 2 unikal variant olmalıdır.")
-
-        await tx.questionOption.deleteMany({ where: { questionId } })
-
-        let createdCorrectOptionId: string | null = null
-
-        for (const ot of finalOptions) {
-          const createdOpt = await tx.questionOption.create({ data: { questionId, text: ot } })
-          if (newCorrectText && normKey(createdOpt.text) === normKey(newCorrectText)) {
-            createdCorrectOptionId = createdOpt.id
-          }
-        }
-
-        if (newCorrectText && !createdCorrectOptionId) {
-          throw new BadRequestException("correctAnswerText option-ların içində olmalıdır.")
-        }
-
         await tx.question.update({
           where: { id: questionId },
-          data: {
-            correctAnswerText: newCorrectText !== undefined ? (newCorrectText || null) : existing.correctAnswerText,
-            correctOptionId: newCorrectText !== undefined ? (createdCorrectOptionId || null) : existing.correctOptionId,
-          },
-        })
-      } else {
-        if (newCorrectText !== undefined) {
-          if (newCorrectText) {
-            const match = existing.options.find((o) => normKey(o.text) === normKey(newCorrectText))
-            if (!match) throw new BadRequestException("correctAnswerText mövcud variantların içində olmalıdır.")
-            await tx.question.update({
-              where: { id: questionId },
-              data: { correctAnswerText: newCorrectText, correctOptionId: match.id },
-            })
-          } else {
-            await tx.question.update({
-              where: { id: questionId },
-              data: { correctAnswerText: null, correctOptionId: null },
-            })
-          }
+          data: { sort: newSort },
+        });
+      }
+
+      if (shouldReplaceImages) {
+        const existingImages = await tx.questionImage.findMany({
+          where: { questionId },
+        });
+
+        existingImages.forEach((im) => tryDeletePublicUpload(im.url));
+
+        await tx.questionImage.deleteMany({
+          where: { questionId },
+        });
+
+        const normalized = (dto.imageUrls || [])
+          .map(normalizeAndPersistImageUrl)
+          .filter((x): x is string => !!x);
+
+        if (normalized.length > 0) {
+          await tx.questionImage.createMany({
+            data: normalized.map((url, i) => ({
+              questionId,
+              url,
+              urlHash: sha256Hex(url),
+              sort: i,
+            })),
+          });
         }
       }
 
-      const full = await tx.question.findUnique({
-        where: { id: questionId },
-        include: { options: true, images: { orderBy: { sort: "asc" } } },
-      })
+      let newCorrectOptionId: string | null = null;
 
-      return full!
-    })
+      if (optionsProvided) {
+        const dtoOptions = dto.options || [];
+
+        if (dtoOptions.length < 2) {
+          throw new BadRequestException("Minimum 2 variant olmalıdır.");
+        }
+
+        const seen = new Set<string>();
+        const finalOpts: { text: string; imageUrls: string[] }[] = [];
+
+        for (const o of dtoOptions) {
+          const text = normText(o.text);
+          if (!text) continue;
+
+          const key = normKey(text);
+          if (seen.has(key)) continue;
+
+          seen.add(key);
+
+          const imageUrls = (o.imageUrls || [])
+            .map(normalizeAndPersistImageUrl)
+            .filter((x): x is string => !!x);
+
+          finalOpts.push({ text, imageUrls });
+        }
+
+        if (finalOpts.length < 2) {
+          throw new BadRequestException("Minimum 2 unikal variant olmalıdır.");
+        }
+
+        const existingOptions = await tx.questionOption.findMany({
+          where: { questionId },
+          include: { images: true },
+        });
+
+        for (const opt of existingOptions) {
+          for (const im of opt.images) {
+            tryDeletePublicUpload(im.url);
+          }
+        }
+
+        await tx.questionOptionImage.deleteMany({
+          where: { questionOption: { questionId } },
+        });
+
+        await tx.questionOption.deleteMany({
+          where: { questionId },
+        });
+
+        for (const opt of finalOpts) {
+          const createdOpt = await tx.questionOption.create({
+            data: {
+              questionId,
+              text: opt.text,
+              images: opt.imageUrls.length
+                ? {
+                  create: opt.imageUrls.map((url, i) => ({
+                    url,
+                    urlHash: sha256Hex(url),
+                    sort: i,
+                  })),
+                }
+                : undefined,
+            },
+          });
+
+          if (newCorrectText && normKey(createdOpt.text) === normKey(newCorrectText)) {
+            newCorrectOptionId = createdOpt.id;
+          }
+        }
+
+        if (newCorrectText && !newCorrectOptionId) {
+          throw new BadRequestException("correctAnswerText variantların içində olmalıdır.");
+        }
+      }
+      else if (newCorrectText !== undefined) {
+        if (newCorrectText) {
+          const match = existing.options.find(
+            (o) => normKey(o.text) === normKey(newCorrectText),
+          );
+
+          if (!match) {
+            throw new BadRequestException(
+              "correctAnswerText mövcud variantların içində olmalıdır.",
+            );
+          }
+
+          newCorrectOptionId = match.id;
+        } else {
+          newCorrectOptionId = null;
+        }
+      } else {
+        newCorrectOptionId = existing.correctOptionId;
+      }
+
+      await tx.question.update({
+        where: { id: questionId },
+        data: {
+          correctAnswerText: newCorrectText !== undefined ? (newCorrectText || null) : existing.correctAnswerText,
+          correctOptionId: newCorrectOptionId,
+        },
+      });
+
+      const refreshed = await tx.question.findUnique({
+        where: { id: questionId },
+        include: {
+          options: {
+            include: {
+              images: { orderBy: { sort: "asc" } },
+            },
+          },
+          images: { orderBy: { sort: "asc" } },
+        },
+      });
+
+      if (!refreshed) {
+        throw new Error("Question disappeared during transaction – this should never happen");
+      }
+
+      return refreshed;
+    });
 
     return {
-      id: updated.id,
-      text: updated.text,
-      correctAnswerText: updated.correctAnswerText,
-      correctOptionId: updated.correctOptionId,
-      options: updated.options.map((o) => ({ id: o.id, text: o.text })),
-      images: updated.images.map((im) => ({ id: im.id, url: im.url, sort: im.sort })),
-    }
+      id: updatedQuestion.id,
+      text: updatedQuestion.text,
+      correctAnswerText: updatedQuestion.correctAnswerText,
+      correctOptionId: updatedQuestion.correctOptionId,
+      sort: updatedQuestion.sort,
+      options: updatedQuestion.options.map((o) => ({
+        id: o.id,
+        text: o.text,
+        images: o.images.map((im) => ({
+          id: im.id,
+          url: im.url,
+          sort: im.sort,
+        })),
+      })),
+      images: updatedQuestion.images.map((im) => ({
+        id: im.id,
+        url: im.url,
+        sort: im.sort,
+      })),
+    };
   }
 
   async deleteQuestion(questionId: string) {
     const q = await this.prisma.question.findUnique({
       where: { id: questionId },
-      include: { images: true },
+      include: { images: true, options: { include: { images: true } } },
     })
     if (!q) throw new BadRequestException("Question not found")
 
     for (const im of q.images) tryDeletePublicUpload(im.url)
+    for (const opt of q.options) {
+      for (const im of opt.images) tryDeletePublicUpload(im.url)
+    }
 
     await this.prisma.question.delete({ where: { id: questionId } })
     return { ok: true }
@@ -733,57 +865,90 @@ export class QuestionsService {
 
   // ---------------- Import direct (supports imageUrls[]) ----------------
   async importQuestionsDirect(bankId: string, dto: ImportQuestionsDirectDto) {
-    const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } })
-    if (!bank) throw new BadRequestException("Bank not found")
+    const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } });
+    if (!bank) {
+      throw new BadRequestException("Bank not found");
+    }
 
-    const qs = dto.questions || []
-    if (!qs.length) throw new BadRequestException("No questions")
+    const questionsInput = dto.questions ?? [];
+
+    if (!Array.isArray(questionsInput) || questionsInput.length === 0) {
+      throw new BadRequestException("Ən azı bir sual göndərilməlidir (questions array-i boşdur)");
+    }
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const createdIds: string[] = []
-      let createdCount = 0
-      let skippedImagesTotal = 0
+      const createdIds: string[] = [];
+      let createdCount = 0;
+      let skippedCount = 0;
+      let skippedImagesTotal = 0;
 
       const maxSortRow = await tx.question.findFirst({
         where: { bankId },
         orderBy: { sort: "desc" },
         select: { sort: true },
-      })
-      let currentSort = (maxSortRow?.sort ?? 0) + 1
+      });
 
-      for (const q of qs) {
-        const qText = normText((q as any).text || "")
-        if (!qText) continue
+      let currentSort = (maxSortRow?.sort ?? 0) + 1;
 
-        const rawOptions = ((q as any).options || []).map((o: any) => o?.text ?? "")
-        const cleaned = rawOptions.map(normOpt).filter(Boolean)
-        if (cleaned.length < 2) continue
-
-        const seen = new Set<string>()
-        const uniqueOpts: string[] = []
-        for (const t of cleaned) {
-          const k = t.toLowerCase()
-          if (seen.has(k)) continue
-          seen.add(k)
-          uniqueOpts.push(t)
+      for (const q of questionsInput) {
+        const qText = normText(q.text ?? "");
+        if (!qText) {
+          skippedCount++;
+          continue;
         }
 
-        const finalOpts = uniqueOpts.slice(0, 5)
-        if (finalOpts.length < 2) continue
+        const inputOptions = Array.isArray(q.options) ? q.options : [];
+        if (inputOptions.length < 2) {
+          skippedCount++;
+          continue;
+        }
 
-        const desiredCorrect = (q as any).correctAnswerText ? normOpt((q as any).correctAnswerText) : ""
-        const correctInOptions = desiredCorrect
-          ? finalOpts.find((x) => x.toLowerCase() === desiredCorrect.toLowerCase()) || null
-          : null
+        const seen = new Set<string>();
+        const finalOpts: { text: string; imageUrls: string[] }[] = [];
 
-        const rawImageUrls = (q as any).imageUrls || []
-        const rawCount = Array.isArray(rawImageUrls) ? rawImageUrls.filter(Boolean).length : 0
+        for (const opt of inputOptions) {
+          const optText = normText(opt.text ?? "");
+          if (!optText) continue;
 
-        const normalizedImages = (Array.isArray(rawImageUrls) ? rawImageUrls : [])
-          .map((u: any) => normalizeAndPersistImageUrl(String(u || "")))
-          .filter((x: any): x is string => !!x)
+          const key = normKey(optText);
+          if (seen.has(key)) continue;
+          seen.add(key);
 
-        skippedImagesTotal += Math.max(0, rawCount - normalizedImages.length)
+          const optImageUrls = Array.isArray(opt.imageUrls) ? opt.imageUrls : [];
+          const normalizedOptImages = optImageUrls
+            .map((u) => normalizeAndPersistImageUrl(String(u ?? "")))
+            .filter((x): x is string => !!x);
+
+          skippedImagesTotal += optImageUrls.length - normalizedOptImages.length;
+
+          finalOpts.push({
+            text: optText,
+            imageUrls: normalizedOptImages,
+          });
+        }
+
+        if (finalOpts.length < 2) {
+          skippedCount++;
+          continue;
+        }
+
+        const desiredCorrect = q.correctAnswerText ? normText(q.correctAnswerText) : "";
+        let correctInOptions: string | null = null;
+
+        if (desiredCorrect) {
+          const found = finalOpts.find((opt) => normKey(opt.text) === normKey(desiredCorrect));
+          if (found) {
+            correctInOptions = found.text;
+          }
+        }
+
+        const rawImageUrls = Array.isArray(q.imageUrls) ? q.imageUrls : [];
+        const normalizedImages = rawImageUrls
+          .map((u) => normalizeAndPersistImageUrl(String(u ?? "")))
+          .filter((x): x is string => !!x);
+
+        skippedImagesTotal += rawImageUrls.length - normalizedImages.length;
+
         const question = await tx.question.create({
           data: {
             bankId,
@@ -801,45 +966,56 @@ export class QuestionsService {
               }
               : undefined,
           },
-        })
+        });
 
-        await tx.questionOption.createMany({
-          data: finalOpts.map((text) => ({ questionId: question.id, text })),
-          skipDuplicates: true,
-        })
+        let correctOptionId: string | null = null;
 
-        if (correctInOptions) {
-          const opts = await tx.questionOption.findMany({
-            where: { questionId: question.id },
-            select: { id: true, text: true },
-          })
+        for (const opt of finalOpts) {
+          const createdOpt = await tx.questionOption.create({
+            data: {
+              questionId: question.id,
+              text: opt.text,
+              images: opt.imageUrls.length
+                ? {
+                  create: opt.imageUrls.map((url, i) => ({
+                    url,
+                    urlHash: sha256Hex(url),
+                    sort: i,
+                  })),
+                }
+                : undefined,
+            },
+          });
 
-          const match = opts.find((o) => o.text.trim().toLowerCase() === correctInOptions.trim().toLowerCase())
-
-          if (match) {
-            await tx.question.update({
-              where: { id: question.id },
-              data: {
-                correctOptionId: match.id,
-                correctAnswerText: match.text,
-              },
-            })
-          } else {
-            await tx.question.update({
-              where: { id: question.id },
-              data: { correctOptionId: null },
-            })
+          if (correctInOptions && normKey(createdOpt.text) === normKey(correctInOptions)) {
+            correctOptionId = createdOpt.id;
           }
         }
 
-        createdCount++
-        createdIds.push(question.id)
+        if (correctOptionId) {
+          await tx.question.update({
+            where: { id: question.id },
+            data: { correctOptionId },
+          });
+        }
+
+        createdCount++;
+        createdIds.push(question.id);
       }
 
-      return { createdCount, createdIds, skippedImagesTotal }
-    })
+      return {
+        createdCount,
+        createdIds,
+        skippedCount,
+        skippedImagesTotal,
+      };
+    });
 
-    return { ok: true, ...result }
+    return {
+      ok: true,
+      message: `${result.createdCount} sual uğurla əlavə olundu, ${result.skippedCount} sual keçildi`,
+      ...result,
+    };
   }
 
   // ---------------- Years ----------------
@@ -946,4 +1122,4 @@ export class QuestionsService {
       }
     })
   }
-} 
+}

@@ -259,15 +259,28 @@ model QuestionImage {
 }
 
 model QuestionOption {
-  id         String   @id @default(cuid())
-  questionId String
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  text       String
-
-  correctForQuestions Question[]      @relation("CorrectOption")
-  chosenInAnswers     AttemptAnswer[]
+  id                      String               @id @default(cuid())
+  questionId              String
+  question                Question             @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text                    String
+  correctForQuestions     Question[]           @relation("CorrectOption")
+  chosenInAnswers         AttemptAnswer[]
+  images                  QuestionOptionImage[]   
 
   @@unique([questionId, text])
+}
+
+model QuestionOptionImage {
+  id              String        @id @default(cuid())
+  questionOptionId String
+  questionOption  QuestionOption @relation(fields: [questionOptionId], references: [id], onDelete: Cascade)
+  url             String        @db.Text
+  urlHash         String        @db.VarChar(64)
+  sort            Int           @default(0)
+  createdAt       DateTime      @default(now())
+
+  @@unique([questionOptionId, urlHash])
+  @@index([questionOptionId])
 }
 
 enum AttemptStatus {
