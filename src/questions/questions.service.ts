@@ -262,6 +262,55 @@ export class QuestionsService {
     }
   }
   async getExams(filter: { universityId?: string; subjectId?: string; year?: number; search?: string; page?: number; limit?: number }) {
+    const page = filter.page ?? 1;
+    const limit = filter.limit ?? 10;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.QuestionBankWhereInput = {
+      ...(filter.universityId ? { universityId: filter.universityId } : {}),
+      ...(filter.subjectId ? { subjectId: filter.subjectId } : {}),
+      ...(filter.year ? { year: filter.year } : {}),
+      ...(filter.search ? {
+        OR: [
+          { title: { contains: filter.search, mode: "insensitive" } },
+          { university: { name: { contains: filter.search, mode: "insensitive" } } },
+          { subject: { name: { contains: filter.search, mode: "insensitive" } } },
+        ],
+      } : {}),
+
+      questions: {
+        some: {},  
+      },
+    };
+
+    const rows = await this.prisma.questionBank.findMany({
+      where,
+      skip,
+      take: limit,
+      include: {
+        university: true,
+        subject: true,
+        _count: { select: { questions: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return rows.map((b) => ({
+      id: b.id,
+      title: b.title,
+      year: b.year,
+      price: Number(b.price),
+      durationMinutes: b.durationMinutes,
+      questionCount: b.questionCount ?? 1,
+      random: b.random,
+      questionsTotal: b._count.questions,
+      totalQuestions: b._count.questions,
+      university: b.university,
+      subject: b.subject,
+    }));
+  }
+
+    async getExamsForAdmin(filter: { universityId?: string; subjectId?: string; year?: number; search?: string; page?: number; limit?: number }) {
     const page = filter.page ?? 1
     const limit = filter.limit ?? 10
     const skip = (page - 1) * limit
@@ -302,6 +351,7 @@ export class QuestionsService {
       subject: b.subject,
     }))
   }
+
   async updateBank(
     bankId: string,
     body: { title?: string; year?: number | string; price?: number | string; questionCount?: number | string; random?: boolean; durationMinutes?: number },

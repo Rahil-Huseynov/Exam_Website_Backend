@@ -146,6 +146,30 @@ export class QuestionsController {
     })
   }
 
+  @Get("exams-admin")
+  async getExamsForAdmin(
+    @Query("universityId") universityId?: string,
+    @Query("subjectId") subjectId?: string,
+    @Query("year") year?: string,
+    @Query("search") search?: string,
+    @Query("page") pageStr?: string,
+    @Query("limit") limitStr?: string,
+  ) {
+    const page = pageStr ? parseInt(pageStr, 10) : 1
+    const limit = limitStr ? parseInt(limitStr, 10) : 10
+    if (isNaN(page) || page < 1) throw new BadRequestException("Invalid page")
+    if (isNaN(limit) || limit < 1 || limit > 100) throw new BadRequestException("Invalid limit")
+
+    return this.qs.getExamsForAdmin({
+      universityId,
+      subjectId,
+      year: year ? Number(year) : undefined,
+      search,
+      page,
+      limit,
+    })
+  }
+
   @Post("exam")
   async createExam(@Body() dto: CreateExamDto) {
     return this.qs.createExam(dto)
