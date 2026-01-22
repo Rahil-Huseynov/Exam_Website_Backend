@@ -33,7 +33,7 @@ services:
     volumes:
       - project2_pgdata:/var/lib/postgresql/data:ro
       - ./uploads:/uploads:ro
-      - /mnt/DISK_1TB/Backup/ExamWebsite:/backups
+      - /mnt/Disk_1TB/Backup/ExamWebsite:/backups
     command: >
       bash -lc '
         while true; do
