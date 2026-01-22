@@ -16,6 +16,7 @@ import { UsersModule } from './users/users.module';
 import { AttemptsModule } from './attempts/attempts.module';
 import { NewsModule } from './news/news.module';
 import { EmailsModule } from './emails/emails.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   providers: [
@@ -28,7 +29,8 @@ import { EmailsModule } from './emails/emails.module';
       useClass: CustomCacheInterceptor,
     },
   ],
-  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, LogsModule, EmailsModule, AdminSeederModule, PrismaModule, QuestionsModule, UsersModule,AttemptsModule,NewsModule,
+  imports: [ConfigModule.forRoot({ isGlobal: true }), ScheduleModule.forRoot(),
+    AuthModule, LogsModule, EmailsModule, AdminSeederModule, PrismaModule, QuestionsModule, UsersModule, AttemptsModule, NewsModule,
 
   ServeStaticModule.forRoot({
     rootPath: join(__dirname, '..', 'uploads'),

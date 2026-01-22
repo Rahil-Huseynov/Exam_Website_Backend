@@ -1,14 +1,17 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-
+import { Controller, Get, Query, UseGuards, Post } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AdminGuard } from 'src/auth/guard';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { LogArchiveService } from './log-archive.service';
 
 @Controller('logs')
 @UseGuards(AuthGuard('jwt'), AdminGuard)
 export class LogsController {
-  constructor(private readonly prisma: PrismaService) { }
-  @UseGuards(AuthGuard('jwt'), AdminGuard)
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly archiveService: LogArchiveService,
+  ) {}
+
   @Get()
   async getLogs(
     @Query('page') page = '1',
@@ -27,5 +30,11 @@ export class LogsController {
     ]);
 
     return { data, total };
+  }
+
+  @Post('archive')
+  async archiveNow() {
+    const res = await this.archiveService.archiveLogs();
+    return { success: true, ...res };
   }
 }
