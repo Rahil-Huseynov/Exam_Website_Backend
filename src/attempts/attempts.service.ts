@@ -297,7 +297,7 @@ export class AttemptsService {
 
     const answers = await this.prisma.attemptAnswer.findMany({
       where: { attemptId },
-      select: { questionId: true, selectedOptionId: true },
+      select: { questionId: true, selectedOptionId: true, flag: true },
     })
     const answeredMap = new Map(answers.map((a) => [a.questionId, a]))
 
@@ -308,13 +308,14 @@ export class AttemptsService {
       options: q.options,
       answered: answeredMap.has(q.id),
       selectedOptionId: answeredMap.get(q.id)?.selectedOptionId ?? null,
+      flag: answeredMap.get(q.id)?.flag ?? false,
     }))
   }
 
 
 
 
-  async answer(attemptId: string, questionId: string, selectedOptionId: string) {
+  async answer(attemptId: string, questionId: string, selectedOptionId: string, flag: boolean = false) {
     const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } })
     if (!attempt) throw new BadRequestException("Attempt not found")
     if (attempt.status !== "IN_PROGRESS") throw new BadRequestException("Attempt is not in progress")
@@ -348,12 +349,13 @@ export class AttemptsService {
 
     const row = await this.prisma.attemptAnswer.upsert({
       where: { attemptId_questionId: { attemptId, questionId } },
-      update: { selectedOptionId, isCorrect },
+      update: { selectedOptionId, isCorrect, flag },
       create: {
         attemptId,
         questionId,
         selectedOptionId,
         isCorrect,
+        flag,
       },
       select: {
         id: true,
@@ -361,6 +363,7 @@ export class AttemptsService {
         questionId: true,
         selectedOptionId: true,
         isCorrect: true,
+        flag: true,
       },
     })
 
@@ -469,6 +472,7 @@ export class AttemptsService {
         questionId: true,
         selectedOptionId: true,
         isCorrect: true,
+        flag: true,
         createdAt: true,
         question: {
           select: {
@@ -558,6 +562,7 @@ export class AttemptsService {
         questionId: true,
         selectedOptionId: true,
         isCorrect: true,
+        flag: true,
         createdAt: true,
         selectedOption: { select: { id: true, text: true } },
       },
@@ -595,6 +600,7 @@ export class AttemptsService {
         answerId: a?.id ?? null,
         createdAt: a?.createdAt ?? null,
         isCorrect: a?.isCorrect ?? null,
+        flag: a?.flag ?? false,
 
         question: {
           id: q.id,
@@ -605,12 +611,13 @@ export class AttemptsService {
           correctOptionText: resolvedCorrectOptionText,
         },
 
-        selected: a
+        selected: a?.selectedOption
           ? {
-            id: a.selectedOption.id,
-            text: a.selectedOption.text,
+            id: a.selectedOption?.id,
+            text: a.selectedOption?.text,
           }
           : null,
+
       }
     })
 
@@ -778,5 +785,32 @@ export class AttemptsService {
         bank: a.bank,
       })),
     }
+  }
+  async setFlag(attemptId: string, questionId: string, flag: boolean) {
+    const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } })
+    if (!attempt) throw new BadRequestException("Attempt not found")
+
+    const row = await this.prisma.attemptAnswer.upsert({
+      where: { attemptId_questionId: { attemptId, questionId } },
+      create: {
+        attemptId,
+        questionId,
+        selectedOptionId: null,
+        isCorrect: null,
+        flag,
+      },
+      update: { flag },
+      select: {
+        id: true,
+        attemptId: true,
+        questionId: true,
+        flag: true,
+        selectedOptionId: true,
+        isCorrect: true,
+        createdAt: true,
+      },
+    })
+
+    return row
   }
 }

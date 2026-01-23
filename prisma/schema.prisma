@@ -313,18 +313,19 @@ model AttemptAnswer {
   id        String  @id @default(cuid())
   attemptId String
   attempt   Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-
+  flag      Boolean @default(false)
   questionId String
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
-  selectedOptionId String
-  selectedOption   QuestionOption @relation(fields: [selectedOptionId], references: [id], onDelete: Cascade)
+  selectedOptionId String?
+  selectedOption   QuestionOption? @relation(fields: [selectedOptionId], references: [id], onDelete: Cascade)
 
-  isCorrect Boolean
+  isCorrect Boolean?   // nullable indi
   createdAt DateTime @default(now())
 
   @@unique([attemptId, questionId])
 }
+
 
 model ExamToken {
   id    String @id @default(cuid())

@@ -1,4 +1,4 @@
-import { IsString } from "class-validator";
+import { IsBoolean, IsString, IsOptional } from "class-validator";
 
 export class AnswerDto {
   @IsString()
@@ -6,4 +6,8 @@ export class AnswerDto {
 
   @IsString()
   selectedOptionId: string;
+
+  @IsOptional()
+  @IsBoolean()
+  flag?: boolean;
 }

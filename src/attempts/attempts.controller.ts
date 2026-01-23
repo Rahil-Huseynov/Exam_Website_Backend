@@ -16,6 +16,7 @@ import { CreateAttemptWithTokenDto } from "./dto/create-attempt-with-token.dto"
 import { RevokeTokenDto } from "./dto/revoke-token.dto"
 
 import { AdminGuard, JwtGuard } from "../auth/guard"
+import { SetFlagDto } from "./dto/flag.dto"
 
 @Controller()
 export class AttemptsController {
@@ -91,7 +92,7 @@ export class AttemptsController {
 
   @Post("attempts/:attemptId/answer")
   async answer(@Param("attemptId") attemptId: string, @Body() dto: AnswerDto) {
-    return this.attempts.answer(attemptId, dto.questionId, dto.selectedOptionId)
+    return this.attempts.answer(attemptId, dto.questionId, dto.selectedOptionId, dto.flag)
   }
 
   @Post("attempts/:attemptId/finish")
@@ -161,5 +162,17 @@ export class AttemptsController {
       status,
     })
   }
+
+  @Post("attempts/:attemptId/answers/:questionId/flag")
+  async setFlag(
+    @Param("attemptId") attemptId: string,
+    @Param("questionId") questionId: string,
+    @Body() dto: SetFlagDto,
+  ) {
+    if (dto.flag == null) throw new BadRequestException("flag is required")
+    const row = await this.attempts.setFlag(attemptId, questionId, dto.flag)
+    return { ok: true, answer: row }
+  }
+
 
 }
