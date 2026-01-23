@@ -47,16 +47,27 @@ model News {
 }
 
 model Log {
-  id        Int      @id @default(autoincrement())
-  method    String
-  url       String
-  status    Int
-  duration  Int
-  userName  String?
-  userId    Int?
-  userRole  String?
-  ip        String?
-  createdAt DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  method      String
+  url         String
+  status      Int
+  duration    Int
+  userId      Int?
+  userName    String?
+  userRole    String?
+  ip          String?
+  country     String?
+  city        String?
+  region      String?
+  isp         String?
+  asn         String?
+  deviceType  String?
+  os          String?
+  osVersion   String?
+  browser     String?
+  browserVer  String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
 }
 
 model User {

@@ -13,60 +13,68 @@ export class LogArchiveService {
   @Cron('0 0 * * *')
   async handleCron() {
     try {
-      await this.prisma.$connect();
-
       await this.archiveLogs();
-    } catch (err) {
-      this.logger.warn(
-        'Log archive cron skipped: database not reachable',
-      );
+    } catch {
+      this.logger.warn('Log archive cron skipped');
     }
   }
 
-  public async archiveLogs(): Promise<{ filePath?: string; deleted: number }> {
-    try {
-      const logs = await this.prisma.log.findMany({
-        orderBy: { createdAt: 'asc' },
-      });
+  async archiveLogs(): Promise<{ filePath?: string; deleted: number }> {
+    const logs = await this.prisma.log.findMany({
+      orderBy: { createdAt: 'asc' },
+    });
 
-      if (!logs.length) {
-        this.logger.log('No logs to archive today.');
-        return { deleted: 0 };
-      }
-
-      const archiveDir =
-        process.env.ARCHIVE_DIR ||
-        path.join(process.cwd(), 'log-archive');
-
-      await fs.mkdir(archiveDir, { recursive: true });
-
-      const today = new Date().toISOString().split('T')[0];
-      const filePath = path.join(archiveDir, `${today}.log`);
-
-      const content =
-        logs
-          .map((log) => {
-            const time = log.createdAt.toISOString();
-            return `[${time}] ${(log as any).level ?? 'INFO'}: ${
-              (log as any).message ?? JSON.stringify(log)
-            }`;
-          })
-          .join('\n') + '\n';
-
-      await fs.appendFile(filePath, content, 'utf8');
-
-      const result = await this.prisma.log.deleteMany();
-
-      this.logger.log(
-        `Archived ${logs.length} logs to ${filePath}, deleted ${result.count} from DB`,
-      );
-
-      return { filePath, deleted: result.count };
-    } catch (err) {
-      this.logger.warn(
-        'Archive skipped: database not reachable or IO error',
-      );
+    if (!logs.length) {
+      this.logger.log('No logs to archive');
       return { deleted: 0 };
     }
+
+    const archiveDir =
+      process.env.ARCHIVE_DIR ||
+      path.join(process.cwd(), 'log-archive');
+
+    await fs.mkdir(archiveDir, { recursive: true });
+
+    const today = new Date().toISOString().split('T')[0];
+    const filePath = path.join(archiveDir, `${today}.log`);
+
+    const content =
+      logs
+        .map((log) => {
+          return JSON.stringify({
+            id: log.id,
+            method: log.method,
+            url: log.url,
+            status: log.status,
+            duration: log.duration,
+            userId: log.userId,
+            userName: log.userName,
+            userRole: log.userRole,
+            ip: log.ip,
+            country: log.country,
+            city: log.city,
+            region: log.region,
+            isp: log.isp,
+            asn: log.asn,
+            deviceType: log.deviceType,
+            os: log.os,
+            osVersion: log.osVersion,
+            browser: log.browser,
+            browserVer: log.browserVer,
+            userAgent: log.userAgent,
+            createdAt: log.createdAt,
+          });
+        })
+        .join('\n') + '\n';
+
+    await fs.appendFile(filePath, content, 'utf8');
+
+    const result = await this.prisma.log.deleteMany();
+
+    this.logger.log(
+      `Archived ${result.count} logs → ${filePath}`,
+    );
+
+    return { filePath, deleted: result.count };
   }
 }

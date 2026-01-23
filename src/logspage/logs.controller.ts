@@ -1,4 +1,10 @@
-import { Controller, Get, Query, UseGuards, Post } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  UseGuards,
+  Post,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AdminGuard } from 'src/auth/guard';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -29,12 +35,20 @@ export class LogsController {
       this.prisma.log.count(),
     ]);
 
-    return { data, total };
+    return {
+      page: Number(page),
+      limit: Number(limit),
+      total,
+      data,
+    };
   }
 
   @Post('archive')
   async archiveNow() {
-    const res = await this.archiveService.archiveLogs();
-    return { success: true, ...res };
+    const result = await this.archiveService.archiveLogs();
+    return {
+      success: true,
+      ...result,
+    };
   }
 }

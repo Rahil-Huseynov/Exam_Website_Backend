@@ -1,24 +1,52 @@
-import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
-import { AuthModule } from './auth/auth.module';
-import { PrismaModule } from './prisma/prisma.module';
+import {
+  MiddlewareConsumer,
+  Module,
+  RequestMethod,
+  NestModule,
+} from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AdminSeederModule } from './admin-seed/admin-seeder.module';
-import { OriginCheckMiddleware } from './common/middleware/origin-check.middleware';
-import { join } from 'path';
-import { LogsModule } from './logspage/logs.module';
-import { APP_INTERCEPTOR } from '@nestjs/core';
-import { HttpLoggingInterceptor } from './common/interceptors/http-logging.interceptor';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { CacheModule } from '@nestjs/cache-manager';
-import { CustomCacheInterceptor } from './common/interceptors/custom-cache.interceptor';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { join } from 'path';
+import { AuthModule } from './auth/auth.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { AdminSeederModule } from './admin-seed/admin-seeder.module';
+import { LogsModule } from './logspage/logs.module';
 import { QuestionsModule } from './questions/questions.module';
 import { UsersModule } from './users/users.module';
 import { AttemptsModule } from './attempts/attempts.module';
 import { NewsModule } from './news/news.module';
 import { EmailsModule } from './emails/emails.module';
-import { ScheduleModule } from '@nestjs/schedule';
+import { OriginCheckMiddleware } from './common/middleware/origin-check.middleware';
+import { SecurityLogMiddleware } from './common/middleware/security-log.middleware';
+import { HttpLoggingInterceptor } from './common/interceptors/http-logging.interceptor';
+import { CustomCacheInterceptor } from './common/interceptors/custom-cache.interceptor';
 
 @Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
+    PrismaModule,
+    AuthModule,
+    LogsModule,
+    EmailsModule,
+    AdminSeederModule,
+    QuestionsModule,
+    UsersModule,
+    AttemptsModule,
+    NewsModule,
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'uploads'),
+      serveRoot: '/uploads',
+    }),
+    CacheModule.register({
+      ttl: 60,
+      max: 100,
+    }),
+  ],
+
   providers: [
     {
       provide: APP_INTERCEPTOR,
@@ -29,23 +57,11 @@ import { ScheduleModule } from '@nestjs/schedule';
       useClass: CustomCacheInterceptor,
     },
   ],
-  imports: [ConfigModule.forRoot({ isGlobal: true }), ScheduleModule.forRoot(),
-    AuthModule, LogsModule, EmailsModule, AdminSeederModule, PrismaModule, QuestionsModule, UsersModule, AttemptsModule, NewsModule,
-
-  ServeStaticModule.forRoot({
-    rootPath: join(__dirname, '..', 'uploads'),
-    serveRoot: '/uploads',
-  }),
-  CacheModule.register({
-    ttl: 60,
-    max: 100,
-  }),
-  ],
 })
-export class AppModule {
+export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(OriginCheckMiddleware)
+      .apply(OriginCheckMiddleware, SecurityLogMiddleware)
       .forRoutes({ path: '*', method: RequestMethod.ALL });
   }
 }

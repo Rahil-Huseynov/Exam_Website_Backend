@@ -14,6 +14,7 @@ import * as express from 'express';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as cookieParser from 'cookie-parser';
 import { join } from 'path';
+import { SecurityLogMiddleware } from './common/middleware/security-log.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -89,6 +90,8 @@ async function bootstrap() {
   const reflector = app.get(Reflector);
   const prisma = app.get(PrismaService);
   const httpAdapterHost = app.get(HttpAdapterHost);
+
+  app.set('trust proxy', 1);
 
   app.useGlobalInterceptors(
     new CustomCacheInterceptor(cacheManager, reflector, httpAdapterHost),
