@@ -2,7 +2,7 @@ import { Injectable, BadRequestException } from "@nestjs/common"
 import { PrismaService } from "../prisma/prisma.service"
 import { Prisma } from "@prisma/client"
 import { CreateExamDto } from "./dto/create-exam.dto"
-import { ImportQuestionsDirectDto } from "./dto/import-direct.dto"
+import { ImportQuestionsDirectDto, ImportDirectQuestionDto } from "./dto/import-direct.dto"
 import { UpdateQuestionDto } from "./dto/update-question.dto"
 import { CreateQuestionDto } from "./dto/create-question.dto"
 import * as fs from "fs"
@@ -213,8 +213,7 @@ export class QuestionsService {
     if (!Number.isFinite(priceNumber) || priceNumber < 0) {
       throw new BadRequestException("Price is invalid")
     }
-    const questionCount =
-      dto.questionCount !== undefined ? Number(dto.questionCount) : undefined
+    const questionCount = dto.questionCount !== undefined ? Number(dto.questionCount) : undefined
     if (questionCount !== undefined) {
       if (!Number.isInteger(questionCount) || questionCount < 1) {
         throw new BadRequestException("questionCount is invalid")
@@ -229,6 +228,7 @@ export class QuestionsService {
     })
     if (!subj) throw new BadRequestException("Subject not found")
     const anyTopic = await this.ensureAnyTopicForUniversity(dto.universityId)
+    const type = dto.type || 'TEST'
     const created = await this.prisma.questionBank.create({
       data: {
         name: title,
@@ -241,6 +241,7 @@ export class QuestionsService {
         universityId: dto.universityId,
         subjectId: dto.subjectId,
         topicId: anyTopic.id,
+        type: type,
       },
       include: {
         university: true,
@@ -259,6 +260,7 @@ export class QuestionsService {
       questionsTotal: created._count.questions,
       university: created.university,
       subject: created.subject,
+      type: created.type,
     }
   }
   async getExams(filter: { universityId?: string; subjectId?: string; year?: number; search?: string; page?: number; limit?: number }) {
@@ -279,7 +281,7 @@ export class QuestionsService {
       } : {}),
 
       questions: {
-        some: {},  
+        some: {},
       },
     };
 
@@ -307,10 +309,11 @@ export class QuestionsService {
       totalQuestions: b._count.questions,
       university: b.university,
       subject: b.subject,
+      type: b.type,
     }));
   }
 
-    async getExamsForAdmin(filter: { universityId?: string; subjectId?: string; year?: number; search?: string; page?: number; limit?: number }) {
+  async getExamsForAdmin(filter: { universityId?: string; subjectId?: string; year?: number; search?: string; page?: number; limit?: number }) {
     const page = filter.page ?? 1
     const limit = filter.limit ?? 10
     const skip = (page - 1) * limit
@@ -349,12 +352,13 @@ export class QuestionsService {
       totalQuestions: b._count.questions,
       university: b.university,
       subject: b.subject,
+      type: b.type,
     }))
   }
 
   async updateBank(
     bankId: string,
-    body: { title?: string; year?: number | string; price?: number | string; questionCount?: number | string; random?: boolean; durationMinutes?: number },
+    body: { title?: string; year?: number | string; price?: number | string; questionCount?: number | string; random?: boolean; durationMinutes?: number; type?: 'TEST' | 'WRITING' },
   ) {
     const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } })
     if (!bank) throw new BadRequestException("Exam/Bank not found")
@@ -394,6 +398,9 @@ export class QuestionsService {
     if (body.random !== undefined) {
       data.random = Boolean(body.random)
     }
+    if (body.type !== undefined) {
+      data.type = body.type
+    }
     const updated = await this.prisma.questionBank.update({
       where: { id: bankId },
       data,
@@ -414,6 +421,7 @@ export class QuestionsService {
       questionsTotal: updated._count.questions,
       university: updated.university,
       subject: updated.subject,
+      type: updated.type,
     }
   }
   async deleteBank(bankId: string) {
@@ -443,6 +451,8 @@ export class QuestionsService {
       questions: qs.map((q) => ({
         id: q.id,
         text: q.text,
+        prompt: q.prompt,
+        answerKey: q.answerKey,
         correctAnswerText: q.correctAnswerText,
         correctOptionId: q.correctOptionId,
         options: q.options.map((o) => ({
@@ -491,13 +501,13 @@ export class QuestionsService {
     return { ok: true }
   }
   // ---------------- Create question (supports imageUrls[]) ----------------
-  async createQuestion(bankId: string, dto: CreateQuestionDto & { imageUrls?: string[] }) {
+  async createQuestion(bankId: string, dto: CreateQuestionDto & { imageUrls?: string[]; prompt?: string; answerKey?: string }) {
     const bank = await this.prisma.questionBank.findUnique({ where: { id: bankId } })
     if (!bank) throw new BadRequestException("Exam/Bank not found")
     const qText = normText(dto.text)
     if (!qText) throw new BadRequestException("Question text is required")
     const rawOptions = (dto.options || []).map((o) => normText(o.text)).filter(Boolean)
-    if (rawOptions.length < 2) throw new BadRequestException("Minimum 2 variant olmalıdır.")
+    if (bank.type === 'TEST' && rawOptions.length < 2) throw new BadRequestException("Minimum 2 variant olmalıdır.")
     const seen = new Set<string>()
     const options: string[] = []
     for (const ot of rawOptions.slice(0, 5)) {
@@ -506,10 +516,10 @@ export class QuestionsService {
       seen.add(k)
       options.push(ot)
     }
-    if (options.length < 2) throw new BadRequestException("Minimum 2 unikal variant olmalıdır.")
+    if (bank.type === 'TEST' && options.length < 2) throw new BadRequestException("Minimum 2 unikal variant olmalıdır.")
     let correctInOptions: string | null = null
     const desiredCorrect = dto.correctAnswerText ? normText(dto.correctAnswerText) : ""
-    if (desiredCorrect) {
+    if (bank.type === 'TEST' && desiredCorrect) {
       const found = options.find((ot) => normKey(ot) === normKey(desiredCorrect))
       if (!found) throw new BadRequestException("Doğru cavab mətni variantların içində olmalıdır.")
       correctInOptions = found
@@ -529,7 +539,9 @@ export class QuestionsService {
         data: {
           bankId,
           text: qText,
-          correctAnswerText: correctInOptions,
+          prompt: bank.type === 'WRITING' ? dto.prompt : undefined,
+          answerKey: bank.type === 'WRITING' ? dto.answerKey : undefined,
+          correctAnswerText: bank.type === 'TEST' ? correctInOptions : undefined,
           correctOptionId: null,
           sort: nextSort,
           images: imageUrls.length
@@ -543,7 +555,7 @@ export class QuestionsService {
         const createdOpt = await tx.questionOption.create({
           data: { questionId: question.id, text: ot },
         })
-        if (correctInOptions && normKey(createdOpt.text) === normKey(correctInOptions)) {
+        if (bank.type === 'TEST' && correctInOptions && normKey(createdOpt.text) === normKey(correctInOptions)) {
           correctOptionId = createdOpt.id
         }
       }
@@ -562,6 +574,8 @@ export class QuestionsService {
     return {
       id: created.id,
       text: created.text,
+      prompt: created.prompt,
+      answerKey: created.answerKey,
       correctAnswerText: created.correctAnswerText,
       correctOptionId: created.correctOptionId,
       options: created.options.map((o) => ({ id: o.id, text: o.text })),
@@ -571,28 +585,35 @@ export class QuestionsService {
   // ---------------- Update question (text/options/correct), images ayrı endpoint ilə ----------------
   async updateQuestion(
     questionId: string,
-    dto: UpdateQuestionDto & { sort?: number | string },
+    dto: UpdateQuestionDto & { sort?: number | string; prompt?: string; answerKey?: string },
   ) {
     const existing = await this.prisma.question.findUnique({
       where: { id: questionId },
       include: {
         options: { include: { images: true } },
         images: true,
+        bank: true,
       },
     });
     if (!existing) {
       throw new BadRequestException("Question not found");
     }
+    const bankType = existing.bank.type;
     const newText = dto.text !== undefined ? normText(dto.text) : undefined;
     const optionsProvided = Array.isArray(dto.options);
     const newCorrectText = dto.correctAnswerText !== undefined ? normText(dto.correctAnswerText) : undefined;
     const newSort = dto.sort !== undefined ? Number(dto.sort) : undefined;
     const shouldReplaceImages = "imageUrls" in dto;
+    const newPrompt = dto.prompt !== undefined ? normText(dto.prompt) : undefined;
+    const newAnswerKey = dto.answerKey !== undefined ? normText(dto.answerKey) : undefined;
     if (newSort !== undefined && (!Number.isInteger(newSort) || newSort < 0)) {
       throw new BadRequestException("Sort must be a non-negative integer");
     }
     if (newText !== undefined && !newText) {
       throw new BadRequestException("Question text cannot be empty");
+    }
+    if (bankType === 'WRITING' && newPrompt !== undefined && !newPrompt) {
+      throw new BadRequestException("Prompt cannot be empty for writing questions");
     }
     const updatedQuestion = await this.prisma.$transaction(async (tx) => {
       if (newText !== undefined) {
@@ -605,6 +626,18 @@ export class QuestionsService {
         await tx.question.update({
           where: { id: questionId },
           data: { sort: newSort },
+        });
+      }
+      if (newPrompt !== undefined && bankType === 'WRITING') {
+        await tx.question.update({
+          where: { id: questionId },
+          data: { prompt: newPrompt },
+        });
+      }
+      if (newAnswerKey !== undefined && bankType === 'WRITING') {
+        await tx.question.update({
+          where: { id: questionId },
+          data: { answerKey: newAnswerKey || null },
         });
       }
       if (shouldReplaceImages) {
@@ -636,97 +669,99 @@ export class QuestionsService {
         }
       }
       let newCorrectOptionId: string | null = null;
-      if (optionsProvided) {
-        const dtoOptions = dto.options || [];
-        if (dtoOptions.length < 2) {
-          throw new BadRequestException("Minimum 2 variant olmalıdır.");
-        }
-        const seen = new Set<string>();
-        const finalOpts: { text: string; imageUrls: string[] }[] = [];
-        const allNewOptImageUrls = new Set<string>()
-        for (const o of dtoOptions) {
-          const text = normText(o.text);
-          if (!text) continue;
-          const key = normKey(text);
-          if (seen.has(key)) continue;
-          seen.add(key);
-          const imageUrls = (o.imageUrls || [])
-            .map(u => String(u).trim())
-            .filter(Boolean);
-          imageUrls.forEach(u => allNewOptImageUrls.add(u))
-          const normalizedOptImages = imageUrls
-            .map(normalizeAndPersistImageUrl)
-            .filter((x): x is string => !!x);
-          finalOpts.push({ text, imageUrls: normalizedOptImages });
-        }
-        if (finalOpts.length < 2) {
-          throw new BadRequestException("Minimum 2 unikal variant olmalıdır.");
-        }
-        const existingOptions = await tx.questionOption.findMany({
-          where: { questionId },
-          include: { images: true },
-        });
-        for (const opt of existingOptions) {
-          for (const im of opt.images) {
-            if (!allNewOptImageUrls.has(im.url)) {
-              tryDeletePublicUpload(im.url);
+      if (bankType === 'TEST') {
+        if (optionsProvided) {
+          const dtoOptions = dto.options || [];
+          if (dtoOptions.length < 2) {
+            throw new BadRequestException("Minimum 2 variant olmalıdır.");
+          }
+          const seen = new Set<string>();
+          const finalOpts: { text: string; imageUrls: string[] }[] = [];
+          const allNewOptImageUrls = new Set<string>()
+          for (const o of dtoOptions) {
+            const text = normText(o.text);
+            if (!text) continue;
+            const key = normKey(text);
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const imageUrls = (o.imageUrls || [])
+              .map(u => String(u).trim())
+              .filter(Boolean);
+            imageUrls.forEach(u => allNewOptImageUrls.add(u))
+            const normalizedOptImages = imageUrls
+              .map(normalizeAndPersistImageUrl)
+              .filter((x): x is string => !!x);
+            finalOpts.push({ text, imageUrls: normalizedOptImages });
+          }
+          if (finalOpts.length < 2) {
+            throw new BadRequestException("Minimum 2 unikal variant olmalıdır.");
+          }
+          const existingOptions = await tx.questionOption.findMany({
+            where: { questionId },
+            include: { images: true },
+          });
+          for (const opt of existingOptions) {
+            for (const im of opt.images) {
+              if (!allNewOptImageUrls.has(im.url)) {
+                tryDeletePublicUpload(im.url);
+              }
             }
           }
-        }
-        await tx.questionOptionImage.deleteMany({
-          where: { questionOption: { questionId } },
-        });
-        await tx.questionOption.deleteMany({
-          where: { questionId },
-        });
-        for (const opt of finalOpts) {
-          const createdOpt = await tx.questionOption.create({
-            data: {
-              questionId,
-              text: opt.text,
-              images: opt.imageUrls.length
-                ? {
-                  create: opt.imageUrls.map((url, i) => ({
-                    url,
-                    urlHash: sha256Hex(url),
-                    sort: i,
-                  })),
-                }
-                : undefined,
-            },
+          await tx.questionOptionImage.deleteMany({
+            where: { questionOption: { questionId } },
           });
-          if (newCorrectText && normKey(createdOpt.text) === normKey(newCorrectText)) {
-            newCorrectOptionId = createdOpt.id;
+          await tx.questionOption.deleteMany({
+            where: { questionId },
+          });
+          for (const opt of finalOpts) {
+            const createdOpt = await tx.questionOption.create({
+              data: {
+                questionId,
+                text: opt.text,
+                images: opt.imageUrls.length
+                  ? {
+                    create: opt.imageUrls.map((url, i) => ({
+                      url,
+                      urlHash: sha256Hex(url),
+                      sort: i,
+                    })),
+                  }
+                  : undefined,
+              },
+            });
+            if (newCorrectText && normKey(createdOpt.text) === normKey(newCorrectText)) {
+              newCorrectOptionId = createdOpt.id;
+            }
+          }
+          if (newCorrectText && !newCorrectOptionId) {
+            throw new BadRequestException("correctAnswerText variantların içində olmalıdır.");
           }
         }
-        if (newCorrectText && !newCorrectOptionId) {
-          throw new BadRequestException("correctAnswerText variantların içində olmalıdır.");
-        }
-      }
-      else if (newCorrectText !== undefined) {
-        if (newCorrectText) {
-          const match = existing.options.find(
-            (o) => normKey(o.text) === normKey(newCorrectText),
-          );
-          if (!match) {
-            throw new BadRequestException(
-              "correctAnswerText mövcud variantların içində olmalıdır.",
+        else if (newCorrectText !== undefined) {
+          if (newCorrectText) {
+            const match = existing.options.find(
+              (o) => normKey(o.text) === normKey(newCorrectText),
             );
+            if (!match) {
+              throw new BadRequestException(
+                "correctAnswerText mövcud variantların içində olmalıdır.",
+              );
+            }
+            newCorrectOptionId = match.id;
+          } else {
+            newCorrectOptionId = null;
           }
-          newCorrectOptionId = match.id;
         } else {
-          newCorrectOptionId = null;
+          newCorrectOptionId = existing.correctOptionId;
         }
-      } else {
-        newCorrectOptionId = existing.correctOptionId;
+        await tx.question.update({
+          where: { id: questionId },
+          data: {
+            correctAnswerText: newCorrectText !== undefined ? (newCorrectText || null) : existing.correctAnswerText,
+            correctOptionId: newCorrectOptionId,
+          },
+        });
       }
-      await tx.question.update({
-        where: { id: questionId },
-        data: {
-          correctAnswerText: newCorrectText !== undefined ? (newCorrectText || null) : existing.correctAnswerText,
-          correctOptionId: newCorrectOptionId,
-        },
-      });
       const refreshed = await tx.question.findUnique({
         where: { id: questionId },
         include: {
@@ -746,6 +781,8 @@ export class QuestionsService {
     return {
       id: updatedQuestion.id,
       text: updatedQuestion.text,
+      prompt: updatedQuestion.prompt,
+      answerKey: updatedQuestion.answerKey,
       correctAnswerText: updatedQuestion.correctAnswerText,
       correctOptionId: updatedQuestion.correctOptionId,
       sort: updatedQuestion.sort,
@@ -799,14 +836,14 @@ export class QuestionsService {
         select: { sort: true },
       });
       let currentSort = (maxSortRow?.sort ?? 0) + 1;
-      for (const q of questionsInput) {
+      for (const q of questionsInput as (ImportDirectQuestionDto & { prompt?: string; answerKey?: string })[]) {
         const qText = normText(q.text ?? "");
         if (!qText) {
           skippedCount++;
           continue;
         }
         const inputOptions = Array.isArray(q.options) ? q.options : [];
-        if (inputOptions.length < 2) {
+        if (bank.type === 'TEST' && inputOptions.length < 2) {
           skippedCount++;
           continue;
         }
@@ -828,13 +865,13 @@ export class QuestionsService {
             imageUrls: normalizedOptImages,
           });
         }
-        if (finalOpts.length < 2) {
+        if (bank.type === 'TEST' && finalOpts.length < 2) {
           skippedCount++;
           continue;
         }
         const desiredCorrect = q.correctAnswerText ? normText(q.correctAnswerText) : "";
         let correctInOptions: string | null = null;
-        if (desiredCorrect) {
+        if (bank.type === 'TEST' && desiredCorrect) {
           const found = finalOpts.find((opt) => normKey(opt.text) === normKey(desiredCorrect));
           if (found) {
             correctInOptions = found.text;
@@ -849,7 +886,9 @@ export class QuestionsService {
           data: {
             bankId,
             text: qText,
-            correctAnswerText: correctInOptions,
+            prompt: bank.type === 'WRITING' ? q.prompt : undefined,
+            answerKey: bank.type === 'WRITING' ? q.answerKey : undefined,
+            correctAnswerText: bank.type === 'TEST' ? correctInOptions : undefined,
             correctOptionId: null,
             sort: currentSort++,
             images: normalizedImages.length
@@ -880,7 +919,7 @@ export class QuestionsService {
                 : undefined,
             },
           });
-          if (correctInOptions && normKey(createdOpt.text) === normKey(correctInOptions)) {
+          if (bank.type === 'TEST' && correctInOptions && normKey(createdOpt.text) === normKey(correctInOptions)) {
             correctOptionId = createdOpt.id;
           }
         }
@@ -925,9 +964,10 @@ export class QuestionsService {
     if (attempt.userId !== userId) throw new BadRequestException("Attempt does not belong to user")
     const bank = await this.prisma.questionBank.findUnique({
       where: { id: attempt.bankId },
-      select: { questionCount: true, random: true },
+      select: { questionCount: true, random: true, type: true },
     })
-    const total = bank?.questionCount || 1
+    if (!bank) throw new BadRequestException("Exam/Bank not found")
+    const total = bank.questionCount || 1
     const existing = await this.prisma.attemptQuestion.findMany({
       where: { attemptId },
       orderBy: { order: "asc" },
@@ -936,6 +976,7 @@ export class QuestionsService {
           select: {
             id: true,
             text: true,
+            prompt: true,
             images: { select: { url: true, sort: true } },
             options: { select: { id: true, text: true } },
             correctOptionId: true,
@@ -982,18 +1023,20 @@ export class QuestionsService {
     }
     const answers = await this.prisma.attemptAnswer.findMany({
       where: { attemptId },
-      select: { questionId: true, selectedOptionId: true },
+      select: { questionId: true, selectedOptionId: true, studentTextAnswer: true },
     })
     const answeredMap = new Map(answers.map((a) => [a.questionId, a]))
     return questions.map((q) => {
-      const opts = shuffle(q.options as { id: string; text: string }[])
+      const opts = bank.type === 'TEST' ? shuffle(q.options as { id: string; text: string }[]) : [];
       return {
         id: q.id,
         text: q.text,
+        prompt: q.prompt,
         images: q.images,
         options: opts.map((o) => ({ id: o.id, text: o.text })),
         answered: answeredMap.has(q.id),
         selectedOptionId: answeredMap.get(q.id)?.selectedOptionId ?? null,
+        studentTextAnswer: answeredMap.get(q.id)?.studentTextAnswer ?? null,
       }
     })
   }

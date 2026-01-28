@@ -1,198 +1,11 @@
 generator client {
-  provider      = "prisma-client-js"
+  provider = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-model Admin {
-  id                  Int                  @id @default(autoincrement())
-  firstName           String?
-  lastName            String?
-  email               String               @unique
-  hash                String
-  role                String
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  balanceTransactions BalanceTransaction[]
-  news                News[]
-}
-
-model News {
-  id String @id @default(cuid())
-
-  titleAz String
-  titleEn String?
-  titleRu String?
-
-  contentAz String  @db.Text
-  contentEn String? @db.Text
-  contentRu String? @db.Text
-
-  imageUrl String? @db.Text
-
-  isPublished Boolean   @default(false)
-  publishedAt DateTime?
-
-  adminId Int?
-  admin   Admin? @relation(fields: [adminId], references: [id], onDelete: SetNull)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([isPublished, publishedAt])
-}
-
-model Log {
-  id          Int      @id @default(autoincrement())
-  method      String
-  url         String
-  status      Int
-  duration    Int
-  userId      Int?
-  userName    String?
-  userRole    String?
-  ip          String?
-  country     String?
-  city        String?
-  region      String?
-  isp         String?
-  asn         String?
-  deviceType  String?
-  os          String?
-  osVersion   String?
-  browser     String?
-  browserVer  String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
-}
-
-model User {
-  id       Int     @id @default(autoincrement())
-  publicId String? @unique
-
-  email           String  @unique
-  hash            String
-  firstName       String?
-  lastName        String?
-  role            String?
-  isEmailVerified Boolean @default(false)
-
-  balance Decimal @default(0.00) @db.Decimal(10, 2)
-
-  attempts            Attempt[]
-  examTokens          ExamToken[]
-  passwordResetTokens PasswordResetToken[]
-  balanceTransactions BalanceTransaction[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("users")
-}
-
-model PasswordResetToken {
-  token     String   @id
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
-  expires   DateTime
-  createdAt DateTime @default(now())
-}
-
-model EmailVerification {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  hash      String
-  firstName String?
-  lastName  String?
-  role      String?
-  code      String
-  expires   DateTime
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("email_verifications")
-}
-
-model University {
-  id     String  @id @default(cuid())
-  logo   String?
-  name   String
-  nameAz String?
-  nameEn String?
-  nameRu String?
-
-  faculties Faculty[]
-  banks     QuestionBank[]
-
-  createdAt DateTime @default(now())
-}
-
-model Subject {
-  id     String  @id @default(cuid())
-  name   String
-  nameAz String?
-  nameEn String?
-  nameRu String?
-
-  banks     QuestionBank[]
-  createdAt DateTime       @default(now())
-}
-
-model Faculty {
-  id           String     @id @default(cuid())
-  name         String
-  universityId String
-  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
-  courses      Course[]
-}
-
-model Course {
-  id        String  @id @default(cuid())
-  title     String
-  facultyId String
-  faculty   Faculty @relation(fields: [facultyId], references: [id], onDelete: Cascade)
-  topics    Topic[]
-}
-
-model Topic {
-  id       String         @id @default(cuid())
-  title    String
-  courseId String
-  course   Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  banks    QuestionBank[]
-}
-
-model QuestionBank {
-  id String @id @default(cuid())
-
-  title String
-  year  Int
-  price Decimal @db.Decimal(10, 2)
-  durationMinutes Int @default(60)
-
-  universityId String
-  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
-
-  subjectId String
-  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-
-  name    String
-  topicId String
-  topic   Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  questionCount Int @default(25) 
-  random Boolean @default(true)   
-  pdfFiles   PdfImport[]
-  questions  Question[]
-  attempts   Attempt[]
-  examTokens ExamToken[]
-  createdAt           DateTime             @default(now())
-  balanceTransactions BalanceTransaction[]
-
-  @@index([universityId, subjectId, year])
+  url = env("DATABASE_URL")
 }
 
 enum PdfStatus {
@@ -201,161 +14,16 @@ enum PdfStatus {
   FAILED
 }
 
-model PdfImport {
-  id     String       @id @default(cuid())
-  bankId String
-  bank   QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
-
-  originalName  String
-  storageKey    String
-  extractedText String?
-  status        PdfStatus @default(PENDING)
-  createdAt     DateTime  @default(now())
-
-  questions Question[]
-}
-
-model Question {
-  id     String       @id @default(cuid())
-  bankId String
-  bank   QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
-
-  text        String
-  explanation String?
-  difficulty  Int     @default(1)
-  sort Int @default(0)
-
-  correctOptionId   String?
-  correctOption     QuestionOption? @relation("CorrectOption", fields: [correctOptionId], references: [id], onDelete: SetNull)
-  correctAnswerText String?
-
-  options QuestionOption[]
-  images  QuestionImage[]
-
-  sourcePdfId String?
-  sourcePdf   PdfImport? @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
-
-  createdAt        DateTime          @default(now())
-  attemptQuestions AttemptQuestion[]
-  attemptAnswers   AttemptAnswer[]
-}
-
-model AttemptQuestion {
-  id         String   @id @default(cuid())
-  attemptId  String
-  questionId String
-  order      Int
-  createdAt  DateTime @default(now())
-
-  attempt  Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-
-  @@unique([attemptId, questionId])
-  @@index([attemptId])
-}
-
-model QuestionImage {
-  id         String   @id @default(cuid())
-  questionId String
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-
-  url     String @db.Text
-  urlHash String @db.VarChar(64)
-
-  sort      Int      @default(0)
-  createdAt DateTime @default(now())
-
-  @@unique([questionId, urlHash])
-  @@index([questionId])
-}
-
-model QuestionOption {
-  id                      String               @id @default(cuid())
-  questionId              String
-  question                Question             @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  text                    String
-  correctForQuestions     Question[]           @relation("CorrectOption")
-  chosenInAnswers         AttemptAnswer[]
-  images                  QuestionOptionImage[]   
-
-  @@unique([questionId, text])
-}
-
-model QuestionOptionImage {
-  id              String        @id @default(cuid())
-  questionOptionId String
-  questionOption  QuestionOption @relation(fields: [questionOptionId], references: [id], onDelete: Cascade)
-  url             String        @db.Text
-  urlHash         String        @db.VarChar(64)
-  sort            Int           @default(0)
-  createdAt       DateTime      @default(now())
-
-  @@unique([questionOptionId, urlHash])
-  @@index([questionOptionId])
+enum AiStatus {
+  PENDING
+  DONE
+  FAILED
 }
 
 enum AttemptStatus {
   IN_PROGRESS
+  WAITING_AI
   FINISHED
-}
-
-model Attempt {
-  id String @id @default(cuid())
-
-  userId Int
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  bankId String
-  bank   QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
-
-  status     AttemptStatus @default(IN_PROGRESS)
-  startedAt  DateTime      @default(now())
-  finishedAt DateTime?
-  score      Int           @default(0)
-  total      Int           @default(0)
-  expiresAt  DateTime?
-  balanceTransactions BalanceTransaction[]
-  attemptQuestions    AttemptQuestion[]
-  answers             AttemptAnswer[]
-  examToken           ExamToken?
-}
-
-model AttemptAnswer {
-  id        String  @id @default(cuid())
-  attemptId String
-  attempt   Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  flag      Boolean @default(false)
-  questionId String
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-
-  selectedOptionId String?
-  selectedOption   QuestionOption? @relation(fields: [selectedOptionId], references: [id], onDelete: Cascade)
-
-  isCorrect Boolean?   // nullable indi
-  createdAt DateTime @default(now())
-
-  @@unique([attemptId, questionId])
-}
-
-
-model ExamToken {
-  id    String @id @default(cuid())
-  token String @unique
-
-  bankId String
-  bank   QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
-
-  userId Int
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime  @default(now())
-  expiresAt DateTime
-  usedAt    DateTime?
-
-  attemptId String?  @unique
-  attempt   Attempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull)
-
-  @@index([bankId, userId])
 }
 
 enum BalanceTxType {
@@ -364,34 +32,343 @@ enum BalanceTxType {
   MANUAL_ADJUSTMENT
 }
 
+enum BankType {
+  TEST
+  WRITING
+}
+
+model Admin {
+  id Int @id @default(autoincrement())
+  firstName String?
+  lastName String?
+  email String @unique
+  hash String
+  role String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  balanceTransactions BalanceTransaction[]
+  news News[]
+  questions Question[]
+}
+
+model News {
+  id String @id @default(cuid())
+  titleAz String
+  titleEn String?
+  titleRu String?
+  contentAz String @db.Text
+  contentEn String? @db.Text
+  contentRu String? @db.Text
+  imageUrl String? @db.Text
+  isPublished Boolean @default(false)
+  publishedAt DateTime?
+  adminId Int?
+  admin Admin? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([isPublished, publishedAt])
+}
+
+model Log {
+  id Int @id @default(autoincrement())
+  method String
+  url String
+  status Int
+  duration Int
+  userId Int?
+  userName String?
+  userRole String?
+  ip String?
+  country String?
+  city String?
+  region String?
+  isp String?
+  asn String?
+  deviceType String?
+  os String?
+  osVersion String?
+  browser String?
+  browserVer String?
+  userAgent String?
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id Int @id @default(autoincrement())
+  publicId String? @unique
+  email String @unique
+  hash String
+  firstName String?
+  lastName String?
+  role String?
+  isEmailVerified Boolean @default(false)
+  balance Decimal @default(0.00) @db.Decimal(10, 2)
+  attempts Attempt[]
+  examTokens ExamToken[]
+  passwordResetTokens PasswordResetToken[]
+  balanceTransactions BalanceTransaction[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("users")
+}
+
+model PasswordResetToken {
+  token String @id
+  userId Int
+  user User @relation(fields: [userId], references: [id])
+  expires DateTime
+  createdAt DateTime @default(now())
+}
+
+model EmailVerification {
+  id Int @id @default(autoincrement())
+  email String @unique
+  hash String
+  firstName String?
+  lastName String?
+  role String?
+  code String
+  expires DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("email_verifications")
+}
+
+model University {
+  id String @id @default(cuid())
+  logo String?
+  name String
+  nameAz String?
+  nameEn String?
+  nameRu String?
+  faculties Faculty[]
+  banks QuestionBank[]
+  createdAt DateTime @default(now())
+}
+
+model Subject {
+  id String @id @default(cuid())
+  name String
+  nameAz String?
+  nameEn String?
+  nameRu String?
+  banks QuestionBank[]
+  createdAt DateTime @default(now())
+}
+
+model Faculty {
+  id String @id @default(cuid())
+  name String
+  universityId String
+  university University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  courses Course[]
+}
+
+model Course {
+  id String @id @default(cuid())
+  title String
+  facultyId String
+  faculty Faculty @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  topics Topic[]
+}
+
+model Topic {
+  id String @id @default(cuid())
+  title String
+  courseId String
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  banks QuestionBank[]
+}
+
+model QuestionBank {
+  id String @id @default(cuid())
+  title String
+  year Int
+  price Decimal @db.Decimal(10, 2)
+  durationMinutes Int @default(60)
+  universityId String
+  university University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  subjectId String
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  name String
+  topicId String
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  questionCount Int @default(25)
+  random Boolean @default(true)
+  type BankType @default(TEST)
+  pdfFiles PdfImport[]
+  questions Question[]
+  attempts Attempt[]
+  examTokens ExamToken[]
+  createdAt DateTime @default(now())
+  balanceTransactions BalanceTransaction[]
+  @@index([universityId, subjectId, year])
+}
+
+model PdfImport {
+  id String @id @default(cuid())
+  bankId String
+  bank QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  originalName String
+  storageKey String
+  extractedText String?
+  status PdfStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  questions Question[]
+}
+
+model Question {
+  id String @id @default(cuid())
+  bankId String
+  bank QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  text String
+  prompt String? @db.Text
+  explanation String?
+  answerKey String? @db.Text
+  difficulty Int @default(1)
+  sort Int @default(0)
+  correctOptionId String?
+  correctOption QuestionOption? @relation("CorrectOption", fields: [correctOptionId], references: [id], onDelete: SetNull)
+  correctAnswerText String?
+  options QuestionOption[]
+  images QuestionImage[]
+  sourcePdfId String?
+  sourcePdf PdfImport? @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
+  createdByAdminId Int?
+  createdByAdmin Admin? @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  attemptQuestions AttemptQuestion[]
+  attemptAnswers AttemptAnswer[]
+}
+
+model AttemptQuestion {
+  id String @id @default(cuid())
+  attemptId String
+  questionId String
+  order Int
+  createdAt DateTime @default(now())
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+}
+
+model QuestionImage {
+  id String @id @default(cuid())
+  questionId String
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  url String @db.Text
+  urlHash String @db.VarChar(64)
+  sort Int @default(0)
+  createdAt DateTime @default(now())
+  @@unique([questionId, urlHash])
+  @@index([questionId])
+}
+
+model QuestionOption {
+  id String @id @default(cuid())
+  questionId String
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text String
+  correctForQuestions Question[] @relation("CorrectOption")
+  chosenInAnswers AttemptAnswer[]
+  images QuestionOptionImage[]
+  @@unique([questionId, text])
+}
+
+model QuestionOptionImage {
+  id String @id @default(cuid())
+  questionOptionId String
+  questionOption QuestionOption @relation(fields: [questionOptionId], references: [id], onDelete: Cascade)
+  url String @db.Text
+  urlHash String @db.VarChar(64)
+  sort Int @default(0)
+  createdAt DateTime @default(now())
+  @@unique([questionOptionId, urlHash])
+  @@index([questionOptionId])
+}
+
+model Attempt {
+  id String @id @default(cuid())
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankId String
+  bank QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  status AttemptStatus @default(IN_PROGRESS)
+  startedAt DateTime @default(now())
+  finishedAt DateTime?
+  score Int @default(0)
+  total Int @default(0)
+  expiresAt DateTime?
+  balanceTransactions BalanceTransaction[]
+  attemptQuestions AttemptQuestion[]
+  answers AttemptAnswer[]
+  examToken ExamToken?
+}
+
+model AttemptAnswer {
+  id String @id @default(cuid())
+  attemptId String
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  flag Boolean @default(false)
+  questionId String
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOptionId String?
+  selectedOption QuestionOption? @relation(fields: [selectedOptionId], references: [id], onDelete: Cascade)
+  studentTextAnswer String? @db.Text
+  score Int?
+  feedback String? @db.Text
+  isCorrect Boolean?
+  createdAt DateTime @default(now())
+  aiCheckedAnswers AiCheckedAnswer[]
+  @@unique([attemptId, questionId])
+}
+
+model ExamToken {
+  id String @id @default(cuid())
+  token String @unique
+  bankId String
+  bank QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  usedAt DateTime?
+  attemptId String? @unique
+  attempt Attempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull)
+  @@index([bankId, userId])
+}
+
 model BalanceTransaction {
   id String @id @default(cuid())
-
   userId Int
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   adminId Int?
-  admin   Admin? @relation(fields: [adminId], references: [id], onDelete: SetNull)
-
-  amount   Decimal @db.Decimal(10, 2)
-  currency String  @default("AZN")
-
+  admin Admin? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  amount Decimal @db.Decimal(10, 2)
+  currency String @default("AZN")
   type BalanceTxType
   note String?
-
   balanceBefore Decimal @db.Decimal(10, 2)
-  balanceAfter  Decimal @db.Decimal(10, 2)
-
+  balanceAfter Decimal @db.Decimal(10, 2)
   attemptId String?
-  attempt   Attempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull)
-
+  attempt Attempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull)
   bankId String?
-  bank   QuestionBank? @relation(fields: [bankId], references: [id], onDelete: SetNull)
-
+  bank QuestionBank? @relation(fields: [bankId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
-
   @@index([userId, createdAt])
   @@index([bankId])
   @@index([attemptId])
   @@index([adminId])
+}
+
+model AiCheckedAnswer {
+  id String @id @default(cuid())
+  attemptAnswerId String
+  attemptAnswer AttemptAnswer @relation(fields: [attemptAnswerId], references: [id], onDelete: Cascade)
+  status AiStatus @default(PENDING)
+  score Int?
+  feedback String? @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

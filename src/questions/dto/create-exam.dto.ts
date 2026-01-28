@@ -1,5 +1,10 @@
+import { IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from "class-validator";
 import { Type } from "class-transformer";
-import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, Min } from "class-validator";
+
+export enum ExamType {
+  TEST = 'TEST',
+  WRITING = 'WRITING',
+}
 
 export class CreateExamDto {
   @IsString()
@@ -10,10 +15,6 @@ export class CreateExamDto {
 
   @IsString()
   subjectId: string;
-
-  @IsOptional()
-  @IsString()
-  topicId?: string;
 
   @Type(() => Number)
   @IsInt()
@@ -32,11 +33,15 @@ export class CreateExamDto {
 
   @IsOptional()
   @IsBoolean()
-  random?: boolean
+  random?: boolean;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  durationMinutes
+  durationMinutes?: number;
+
+  @IsOptional()
+  @IsEnum(ExamType)
+  type?: ExamType;
 }

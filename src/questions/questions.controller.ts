@@ -251,8 +251,12 @@ export class QuestionsController {
 export class BankQuestionsController {
   constructor(private qs: QuestionsService) { }
 
-  @Post("banks/:bankId/questions/import-direct")
-  async importDirect(@Param("bankId") bankId: string, @Body() dto: ImportQuestionsDirectDto) {
-    return this.qs.importQuestionsDirect(bankId, dto)
-  }
+ @Post("banks/:bankId/questions/import-direct")
+async importDirect(
+  @Param("bankId") bankId: string,
+  @Body() dto: any
+) {
+  return this.qs.importQuestionsDirect(bankId, dto);
+}
+
 }

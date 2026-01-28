@@ -1,11 +1,16 @@
-import { IsBoolean, IsString, IsOptional } from "class-validator";
+import { IsBoolean, IsOptional, IsString } from "class-validator";
 
 export class AnswerDto {
   @IsString()
   questionId: string;
 
+  @IsOptional()
   @IsString()
-  selectedOptionId: string;
+  selectedOptionId?: string;
+
+  @IsOptional()
+  @IsString()
+  studentTextAnswer?: string;
 
   @IsOptional()
   @IsBoolean()

@@ -1,8 +1,15 @@
-import { IsArray, IsOptional, IsString, ValidateNested } from "class-validator";
+import { 
+  IsArray, 
+  IsOptional, 
+  IsString, 
+  ValidateNested, 
+  IsNotEmpty 
+} from "class-validator";
 import { Type } from "class-transformer";
 
 export class ImportDirectOptionDto {
   @IsString()
+  @IsNotEmpty()
   text: string;
 
   @IsOptional()
@@ -13,6 +20,7 @@ export class ImportDirectOptionDto {
 
 export class ImportDirectQuestionDto {
   @IsString()
+  @IsNotEmpty()
   text: string;
 
   @IsArray()

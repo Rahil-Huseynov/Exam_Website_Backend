@@ -23,6 +23,7 @@ import { OriginCheckMiddleware } from './common/middleware/origin-check.middlewa
 import { SecurityLogMiddleware } from './common/middleware/security-log.middleware';
 import { HttpLoggingInterceptor } from './common/interceptors/http-logging.interceptor';
 import { CustomCacheInterceptor } from './common/interceptors/custom-cache.interceptor';
+import { AiModule } from './ai-checker/ai.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { CustomCacheInterceptor } from './common/interceptors/custom-cache.inter
     LogsModule,
     EmailsModule,
     AdminSeederModule,
+    AiModule,
     QuestionsModule,
     UsersModule,
     AttemptsModule,

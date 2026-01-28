@@ -1,55 +1,65 @@
-import { Injectable, BadRequestException } from "@nestjs/common"
-import { PrismaService } from "../prisma/prisma.service"
-import { Prisma } from "@prisma/client"
-import { randomBytes } from "crypto"
+import { Injectable, BadRequestException, Inject, forwardRef } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { Prisma } from "@prisma/client";
+import { randomBytes } from "crypto";
+import { AttemptStatus } from "@prisma/client";
+import { AiService } from "src/ai-checker/ai.service";
 
 function shuffle<T>(arr: T[]) {
-  const a = [...arr]
+  const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-      ;[a[i], a[j]] = [a[j], a[i]]
+    const j = Math.floor(Math.random() * (i + 1));
+    ;[a[i], a[j]] = [a[j], a[i]];
   }
-  return a
+  return a;
 }
-
 function asDec(v: Prisma.Decimal | string | number) {
-  return v instanceof Prisma.Decimal ? v : new Prisma.Decimal(String(v))
+  return v instanceof Prisma.Decimal ? v : new Prisma.Decimal(String(v));
 }
-
 function round2(d: Prisma.Decimal) {
-  return d.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+  return d.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 }
-
 function norm(s?: string | null) {
-  return String(s || "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLowerCase()
+  return String(s || "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 @Injectable()
 export class AttemptsService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    private prisma: PrismaService,
+    private aiService: AiService,
+  ) { }
 
   private genToken() {
-    return randomBytes(32).toString("hex")
+    return randomBytes(32).toString("hex");
   }
 
-  async userAttempts(userId: number, status?: "FINISHED" | "IN_PROGRESS") {
-    const where: any = { userId }
+  async userAttempts(userId: number, status?: string | string[]) {
+    const uid = userId;
+    const where: any = { userId: uid };
 
-    if (status === "FINISHED") {
-      where.status = "FINISHED"
-      where.finishedAt = { not: null }
-    }
-
-    if (status === "IN_PROGRESS") {
-      where.status = "IN_PROGRESS"
+    if (status) {
+      if (Array.isArray(status)) {
+        where.OR = status.map(s => {
+          if (s === "FINISHED") return { status: "FINISHED", finishedAt: { not: null } };
+          return { status: s };
+        });
+      } else {
+        if (status === "FINISHED") {
+          where.status = "FINISHED";
+          where.finishedAt = { not: null };
+        } else {
+          where.status = status;
+        }
+      }
     }
 
     const rows = await this.prisma.attempt.findMany({
       where,
-      orderBy: { startedAt: "desc" },
+      orderBy: [
+        { finishedAt: "desc" },
+        { startedAt: "desc" },
+      ],
       include: {
         bank: {
           include: {
@@ -59,7 +69,7 @@ export class AttemptsService {
           },
         },
       },
-    })
+    });
 
     return rows.map((a) => ({
       id: a.id,
@@ -69,59 +79,46 @@ export class AttemptsService {
       score: a.score,
       total: a.total,
       bank: a.bank,
-    }))
+    }));
   }
 
   async createOneTimeExamToken(bankId: string, userId: number, ttlMinutes = 10) {
-    const now = new Date()
-
+    const now = new Date();
     return this.prisma.$transaction(async (tx) => {
-      const bank = await tx.questionBank.findUnique({ where: { id: bankId } })
-      if (!bank) throw new BadRequestException("Bank not found")
-
-      const user = await tx.user.findUnique({ where: { id: userId } })
-      if (!user) throw new BadRequestException("User not found")
-
+      const bank = await tx.questionBank.findUnique({ where: { id: bankId } });
+      if (!bank) throw new BadRequestException("Bank not found");
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user) throw new BadRequestException("User not found");
       const inProgress = await tx.attempt.findFirst({
         where: { userId, bankId, status: "IN_PROGRESS" },
         orderBy: { startedAt: "desc" },
         select: { id: true },
-      })
-
+      });
       if (inProgress) {
-        await tx.attemptAnswer.deleteMany({ where: { attemptId: inProgress.id } })
-        await tx.attemptQuestion.deleteMany({ where: { attemptId: inProgress.id } })
-
+        await tx.attemptAnswer.deleteMany({ where: { attemptId: inProgress.id } });
+        await tx.attemptQuestion.deleteMany({ where: { attemptId: inProgress.id } });
         await tx.examToken.updateMany({
           where: { attemptId: inProgress.id },
           data: { attemptId: null },
-        })
-
-        await tx.attempt.delete({ where: { id: inProgress.id } })
+        });
+        await tx.attempt.delete({ where: { id: inProgress.id } });
       }
-
       await tx.examToken.deleteMany({
         where: { bankId, userId, usedAt: null },
-      })
-
-      const price = asDec(bank.price)
-      const bal = asDec(user.balance)
-      if (bal.lessThan(price)) throw new BadRequestException("Insufficient balance")
-
-      const newBal = round2(bal.minus(price))
-
-      const token = this.genToken()
-      const expiresAt = new Date(now.getTime() + ttlMinutes * 60 * 1000)
-
+      });
+      const price = asDec(bank.price);
+      const bal = asDec(user.balance);
+      if (bal.lessThan(price)) throw new BadRequestException("Insufficient balance");
+      const newBal = round2(bal.minus(price));
+      const token = this.genToken();
+      const expiresAt = new Date(now.getTime() + ttlMinutes * 60 * 1000);
       const tokenRow = await tx.examToken.create({
         data: { token, bankId, userId, expiresAt },
-      })
-
+      });
       await tx.user.update({
         where: { id: userId },
         data: { balance: newBal },
-      })
-
+      });
       await tx.balanceTransaction.create({
         data: {
           userId,
@@ -133,56 +130,47 @@ export class AttemptsService {
           balanceAfter: round2(newBal),
           note: `Exam token created: ${bank.title} (${bank.year}) • non-refundable`,
         },
-      })
-
-      return { token: tokenRow.token, expiresAt }
-    })
+      });
+      return { token: tokenRow.token, expiresAt };
+    });
   }
 
-
-
   async revokeToken(bankId: string, userId: number, token: string) {
-    const now = new Date()
+    const now = new Date();
     const res = await this.prisma.examToken.updateMany({
       where: { bankId, userId, token, usedAt: null },
       data: { usedAt: now },
-    })
-    return res.count
+    });
+    return res.count;
   }
 
   async deleteToken(bankId: string, userId: number, token: string) {
     const res = await this.prisma.examToken.deleteMany({
       where: { bankId, userId, token, usedAt: null },
-    })
-    return res.count
+    });
+    return res.count;
   }
 
   async createAttemptWithToken(bankId: string, userId: number, token: string) {
-    const now = new Date()
-
+    const now = new Date();
     return this.prisma.$transaction(async (tx) => {
-      const bank = await tx.questionBank.findUnique({ where: { id: bankId } })
-      if (!bank) throw new BadRequestException("Bank not found")
-
-      const user = await tx.user.findUnique({ where: { id: userId } })
-      if (!user) throw new BadRequestException("User not found")
-
+      const bank = await tx.questionBank.findUnique({ where: { id: bankId } });
+      if (!bank) throw new BadRequestException("Bank not found");
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user) throw new BadRequestException("User not found");
       const existingAttempt = await tx.attempt.findFirst({
         where: { userId, bankId, status: "IN_PROGRESS" },
         orderBy: { startedAt: "desc" },
-      })
+      });
       if (existingAttempt) {
-        return { attempt: existingAttempt, remainingBalance: user.balance.toString() }
+        return { attempt: existingAttempt, remainingBalance: user.balance.toString() };
       }
-
-      const tokenRow = await tx.examToken.findUnique({ where: { token } })
-      if (!tokenRow) throw new BadRequestException("Token not found")
-      if (tokenRow.bankId !== bankId || tokenRow.userId !== userId) throw new BadRequestException("Token mismatch")
-      if (tokenRow.usedAt) throw new BadRequestException("Token already used")
-      if (tokenRow.expiresAt.getTime() < now.getTime()) throw new BadRequestException("Token expired")
-      if (tokenRow.attemptId) throw new BadRequestException("Token already used")
-
-
+      const tokenRow = await tx.examToken.findUnique({ where: { token } });
+      if (!tokenRow) throw new BadRequestException("Token not found");
+      if (tokenRow.bankId !== bankId || tokenRow.userId !== userId) throw new BadRequestException("Token mismatch");
+      if (tokenRow.usedAt) throw new BadRequestException("Token already used");
+      if (tokenRow.expiresAt.getTime() < now.getTime()) throw new BadRequestException("Token expired");
+      if (tokenRow.attemptId) throw new BadRequestException("Token already used");
       const attempt = await tx.attempt.create({
         data: {
           userId,
@@ -190,31 +178,30 @@ export class AttemptsService {
           status: "IN_PROGRESS",
           startedAt: now,
         },
-      })
-
+      });
       await tx.examToken.update({
         where: { id: tokenRow.id },
         data: {
           usedAt: now,
           attemptId: attempt.id,
         },
-      })
-
-      return { attempt, remainingBalance: user.balance.toString() }
-    })
+      });
+      return { attempt, remainingBalance: user.balance.toString() };
+    });
   }
 
-
   async getAttemptQuestions(attemptId: string, userId: number) {
-    const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } })
-    if (!attempt) throw new BadRequestException("Attempt not found")
-    if (attempt.userId !== userId) throw new BadRequestException("Attempt does not belong to user")
+    const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } });
+    if (!attempt) throw new BadRequestException("Attempt not found");
+    if (attempt.userId !== userId) throw new BadRequestException("Attempt does not belong to user");
 
     const bank = await this.prisma.questionBank.findUnique({
       where: { id: attempt.bankId },
-      select: { questionCount: true },
-    })
-    const total = bank?.questionCount || 1
+      select: { questionCount: true, random: true, type: true },
+    });
+    if (!bank) throw new BadRequestException("Exam/Bank not found");
+
+    const total = bank.questionCount || 1;
 
     const existing = await this.prisma.attemptQuestion.findMany({
       where: { attemptId },
@@ -224,201 +211,267 @@ export class AttemptsService {
           select: {
             id: true,
             text: true,
+            prompt: true,
             images: { select: { url: true, sort: true } },
             options: { select: { id: true, text: true } },
+            correctOptionId: true,
+            correctAnswerText: true,
           },
         },
       },
-    })
+    });
 
-    let questions: any[] = []
+    let questions: any[] = [];
 
     if (existing.length === 0) {
-      const bankFull = await this.prisma.questionBank.findUnique({
-        where: { id: attempt.bankId },
-        select: {
-          random: true,
-          questionCount: true,
-        },
-      })
-
-      const total = bankFull?.questionCount || 1
-
-      let questionsAll: any[] = []
-
-      if (!bankFull?.random) {
-        questionsAll = await this.prisma.question.findMany({
-          where: {
-            bankId: attempt.bankId,
-            correctOptionId: { not: null },
-          },
+      let allQuestions: any[] = [];
+      if (!bank?.random) {
+        allQuestions = await this.prisma.question.findMany({
+          where: { bankId: attempt.bankId },
           orderBy: { sort: "asc" },
-          take: total,
-          select: {
-            id: true,
-            text: true,
-            images: { select: { url: true, sort: true } },
-            options: { select: { id: true, text: true } },
+          include: {
+            options: true,
+            images: { orderBy: { sort: "asc" } },
           },
-        })
+          take: total,
+        });
       } else {
         const all = await this.prisma.question.findMany({
-          where: {
-            bankId: attempt.bankId,
-            correctOptionId: { not: null },
+          where: { bankId: attempt.bankId },
+          include: {
+            options: true,
+            images: { orderBy: { sort: "asc" } },
           },
-          select: {
-            id: true,
-            text: true,
-            images: { select: { url: true, sort: true } },
-            options: { select: { id: true, text: true } },
-          },
-        })
-
-        questionsAll = shuffle(all).slice(0, total)
+        });
+        allQuestions = shuffle(all).slice(0, total);
       }
 
-
-      const picked = questionsAll
-
       await this.prisma.attemptQuestion.createMany({
-        data: picked.map((q, idx) => ({
+        data: allQuestions.map((q, idx) => ({
           attemptId,
           questionId: q.id,
           order: idx + 1,
         })),
         skipDuplicates: true,
-      })
+      });
 
-      questions = picked
+      questions = allQuestions;
     } else {
-      questions = existing.map((x) => x.question).slice(0, total)
+      questions = existing.map((x) => x.question).slice(0, total);
     }
 
     const answers = await this.prisma.attemptAnswer.findMany({
       where: { attemptId },
-      select: { questionId: true, selectedOptionId: true, flag: true },
-    })
-    const answeredMap = new Map(answers.map((a) => [a.questionId, a]))
+      select: { questionId: true, selectedOptionId: true, studentTextAnswer: true, flag: true },
+    });
+    const answeredMap = new Map(answers.map((a) => [a.questionId, a]));
 
-    return questions.map((q) => ({
-      id: q.id,
-      text: q.text,
-      images: q.images,
-      options: q.options,
-      answered: answeredMap.has(q.id),
-      selectedOptionId: answeredMap.get(q.id)?.selectedOptionId ?? null,
-      flag: answeredMap.get(q.id)?.flag ?? false,
-    }))
+    return questions.map((q) => {
+      const opts = bank.type === 'TEST' ? shuffle(q.options as { id: string; text: string }[]) : [];
+      const ans = answeredMap.get(q.id);
+      return {
+        id: q.id,
+        text: q.text,
+        prompt: q.prompt,
+        images: q.images,
+        options: opts.map((o) => ({ id: o.id, text: o.text })),
+        answered: !!ans,
+        selectedOptionId: ans?.selectedOptionId ?? null,
+        studentTextAnswer: ans?.studentTextAnswer ?? null,
+        flag: ans?.flag ?? false,
+      };
+    });
   }
 
-
-
-
-  async answer(attemptId: string, questionId: string, selectedOptionId: string, flag: boolean = false) {
-    const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } })
-    if (!attempt) throw new BadRequestException("Attempt not found")
-    if (attempt.status !== "IN_PROGRESS") throw new BadRequestException("Attempt is not in progress")
+  async answer(
+    attemptId: string,
+    questionId: string,
+    selectedOptionId?: string,
+    studentTextAnswer?: string,
+    flag: boolean = false
+  ) {
+    const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } });
+    if (!attempt) throw new BadRequestException("Attempt not found");
+    if (attempt.status !== "IN_PROGRESS") throw new BadRequestException({ message: "Attempt is not in progress" });
 
     const question = await this.prisma.question.findUnique({
       where: { id: questionId },
       select: {
         id: true,
         bankId: true,
+        bank: { select: { type: true } },
         correctOptionId: true,
         correctAnswerText: true,
       },
-    })
-    if (!question) throw new BadRequestException("Question not found")
-    if (question.bankId !== attempt.bankId) throw new BadRequestException("Question does not belong to this exam")
+    });
+    if (!question) throw new BadRequestException({ message: "Question not found" });
+    if (question.bankId !== attempt.bankId)
+      throw new BadRequestException({ message: "Question does not belong to this exam" });
 
-    const option = await this.prisma.questionOption.findUnique({
-      where: { id: selectedOptionId },
-      select: { id: true, questionId: true, text: true },
-    })
-    if (!option) throw new BadRequestException("Option not found")
-    if (option.questionId !== questionId) throw new BadRequestException("Option does not belong to this question")
+    const bankType = question.bank.type;
 
-    let isCorrect = false
+    let isCorrect: boolean | null = null;
+    const data: any = { flag };
 
-    if (question.correctOptionId) {
-      isCorrect = question.correctOptionId === selectedOptionId
-    } else if (question.correctAnswerText) {
-      isCorrect = norm(option.text) === norm(question.correctAnswerText)
+    if (bankType === "TEST") {
+      if (!selectedOptionId)
+        throw new BadRequestException({ message: "Selected option is required for TEST type" });
+
+      const option = await this.prisma.questionOption.findUnique({
+        where: { id: selectedOptionId },
+        select: { id: true, questionId: true, text: true },
+      });
+
+      if (!option) throw new BadRequestException({ message: "Option not found" });
+      if (option.questionId !== questionId)
+        throw new BadRequestException({ message: "Option does not belong to this question" });
+
+      if (question.correctOptionId) {
+        isCorrect = question.correctOptionId === selectedOptionId;
+      } else if (question.correctAnswerText) {
+        isCorrect = norm(option.text) === norm(question.correctAnswerText);
+      }
+
+      data.selectedOptionId = selectedOptionId;
+      data.isCorrect = isCorrect;
+      data.studentTextAnswer = null;
+    } else if (bankType === "WRITING") {
+      if (!studentTextAnswer)
+        throw new BadRequestException({ message: "Student text answer is required for WRITING type" });
+      if (selectedOptionId)
+        throw new BadRequestException({ message: "Selected option is not allowed for WRITING type" });
+
+      data.studentTextAnswer = studentTextAnswer;
+      data.selectedOptionId = null;
+      data.isCorrect = null;
+      data.score = null;
+    } else {
+      throw new BadRequestException({ message: "Invalid bank type" });
     }
 
     const row = await this.prisma.attemptAnswer.upsert({
       where: { attemptId_questionId: { attemptId, questionId } },
-      update: { selectedOptionId, isCorrect, flag },
+      update: data,
       create: {
         attemptId,
         questionId,
-        selectedOptionId,
-        isCorrect,
-        flag,
+        ...data,
       },
       select: {
         id: true,
         attemptId: true,
         questionId: true,
         selectedOptionId: true,
+        studentTextAnswer: true,
         isCorrect: true,
+        score: true,
         flag: true,
       },
-    })
+    });
 
-    return row
+    return row;
   }
+
 
   async finish(attemptId: string) {
     const attempt = await this.prisma.attempt.findUnique({
       where: { id: attemptId },
-      select: { id: true, bankId: true, status: true },
-    })
-    if (!attempt) throw new BadRequestException("Attempt not found")
+      include: { bank: true },
+    });
+    if (!attempt) throw new BadRequestException("Attempt not found");
 
-    const bank = await this.prisma.questionBank.findUnique({
-      where: { id: attempt.bankId },
-      select: { questionCount: true },
-    })
-    const total = bank?.questionCount || 1
+    const bankType = attempt.bank.type;
+    const total = attempt.bank?.questionCount || 1;
 
-    const correct = await this.prisma.attemptAnswer.count({
-      where: { attemptId, isCorrect: true },
-    })
-
-    const answered = await this.prisma.attemptAnswer.count({
+    const answers = await this.prisma.attemptAnswer.findMany({
       where: { attemptId },
-    })
+    });
+    const answered = answers.length;
+    const unanswered = total - answered;
 
-    const wrong = total - correct
-    const unanswered = total - answered
+    let status: AttemptStatus = AttemptStatus.FINISHED;
+    let score = 0;
+    let correct = 0;
+    let wrong = 0;
 
-    const row =
-      attempt.status === "FINISHED"
-        ? await this.prisma.attempt.findUnique({ where: { id: attemptId } })
-        : await this.prisma.attempt.update({
-          where: { id: attemptId },
-          data: {
-            status: "FINISHED",
-            finishedAt: new Date(),
-            total,
-            score: correct,
-          },
-        })
+    if (bankType === "TEST") {
+      correct = answers.filter((a) => a.isCorrect).length;
+      wrong = answered - correct;
+      score = correct;
 
-    return {
-      attemptId: row!.id,
-      status: row!.status,
-      score: row!.score,
-      total: row!.total,
-      correct,
-      wrong,
-      answered,
-      unanswered,
+      const updated = await this.prisma.attempt.update({
+        where: { id: attemptId },
+        data: {
+          status: "FINISHED",
+          finishedAt: new Date(),
+          total,
+          score,
+        },
+      });
+
+      return {
+        attemptId: updated.id,
+        status: updated.status,
+        score: updated.score,
+        total: updated.total,
+        correct,
+        wrong,
+        answered,
+        unanswered,
+      };
+    } else if (bankType === "WRITING") {
+      if (unanswered > 0) throw new BadRequestException("All questions must be answered before finishing WRITING exam");
+
+      for (const ans of answers) {
+        const exists = await this.prisma.aiCheckedAnswer.findFirst({ where: { attemptAnswerId: ans.id } });
+        if (!exists) {
+          const checked = await this.prisma.aiCheckedAnswer.create({
+            data: {
+              attemptAnswerId: ans.id,
+              status: "PENDING",
+            },
+          });
+          try {
+            this.aiService.enqueueWritingCheck(checked.id);
+          } catch (err) {
+          }
+        } else {
+          if (exists.status === 'FAILED') {
+            await this.prisma.aiCheckedAnswer.update({
+              where: { id: exists.id },
+              data: { status: 'PENDING' },
+            });
+            try {
+              this.aiService.enqueueWritingCheck(exists.id);
+            } catch { }
+          }
+        }
+      }
+
+      await this.prisma.attempt.update({
+        where: { id: attemptId },
+        data: {
+          status: "WAITING_AI",
+          finishedAt: new Date(),
+          total,
+          score: 0,
+        },
+      });
+
+      return {
+        attemptId: attempt.id,
+        status: "WAITING_AI",
+        score: 0,
+        total,
+        correct: 0,
+        wrong: 0,
+        answered,
+        unanswered: 0,
+      };
+    } else {
+      throw new BadRequestException("Invalid bank type");
     }
   }
-
 
   async summary(attemptId: string) {
     const attempt = await this.prisma.attempt.findUnique({
@@ -432,21 +485,17 @@ export class AttemptsService {
           },
         },
       },
-    })
-    if (!attempt) throw new BadRequestException("Attempt not found")
-
-    const total = attempt.bank?.questionCount || 1
-
+    });
+    if (!attempt) throw new BadRequestException("Attempt not found");
+    const total = attempt.bank?.questionCount || 1;
     const answers = await this.prisma.attemptAnswer.findMany({
       where: { attemptId },
       select: { isCorrect: true },
-    })
-
-    const answered = answers.length
-    const correct = answers.filter((a) => a.isCorrect).length
-    const wrong = total - correct
-    const unanswered = total - answered
-
+    });
+    const answered = answers.length;
+    const correct = answers.filter((a) => a.isCorrect).length;
+    const wrong = total - correct;
+    const unanswered = total - answered;
     return {
       attemptId: attempt.id,
       status: attempt.status,
@@ -461,7 +510,7 @@ export class AttemptsService {
         unanswered,
       },
       exam: attempt.bank,
-    }
+    };
   }
 
   async attemptAnswers(attemptId: string) {
@@ -471,6 +520,7 @@ export class AttemptsService {
         id: true,
         questionId: true,
         selectedOptionId: true,
+        studentTextAnswer: true,
         isCorrect: true,
         flag: true,
         createdAt: true,
@@ -487,7 +537,7 @@ export class AttemptsService {
         selectedOption: { select: { id: true, text: true } },
       },
       orderBy: { createdAt: "asc" },
-    })
+    });
   }
 
   async reviewAttempt(attemptId: string, userId: number) {
@@ -502,11 +552,9 @@ export class AttemptsService {
           },
         },
       },
-    })
-
-    if (!attempt) throw new BadRequestException("Attempt not found")
-    if (attempt.userId !== userId) throw new BadRequestException("This attempt does not belong to this user")
-
+    });
+    if (!attempt) throw new BadRequestException("Attempt not found");
+    if (attempt.userId !== userId) throw new BadRequestException("This attempt does not belong to this user");
     const aq = await this.prisma.attemptQuestion.findMany({
       where: { attemptId },
       orderBy: { order: "asc" },
@@ -522,11 +570,9 @@ export class AttemptsService {
           },
         },
       },
-    })
-
+    });
     if (aq.length === 0) {
-      await this.getAttemptQuestions(attemptId, userId)
-
+      await this.getAttemptQuestions(attemptId, userId);
       const aq2 = await this.prisma.attemptQuestion.findMany({
         where: { attemptId },
         orderBy: { order: "asc" },
@@ -542,66 +588,59 @@ export class AttemptsService {
             },
           },
         },
-      })
-
-      if (aq2.length === 0) throw new BadRequestException("Attempt questions not generated")
-      var attemptQuestions = aq2
+      });
+      if (aq2.length === 0) throw new BadRequestException("Attempt questions not generated");
+      var attemptQuestions = aq2;
     } else {
-      var attemptQuestions = aq
+      var attemptQuestions = aq;
     }
-
-    const bankQc = attempt.bank?.questionCount
-    const total = (typeof bankQc === "number" && bankQc > 0) ? bankQc : 1
-
-    const picked = attemptQuestions.slice(0, total)
-
+    const bankQc = attempt.bank?.questionCount;
+    const total = (typeof bankQc === "number" && bankQc > 0) ? bankQc : 1;
+    const picked = attemptQuestions.slice(0, total);
     const answers = await this.prisma.attemptAnswer.findMany({
       where: { attemptId },
       select: {
         id: true,
         questionId: true,
         selectedOptionId: true,
+        studentTextAnswer: true,
         isCorrect: true,
+        score: true,
+        feedback: true,
         flag: true,
         createdAt: true,
         selectedOption: { select: { id: true, text: true } },
       },
-    })
-    const ansMap = new Map(answers.map((a) => [a.questionId, a]))
-
-    const answeredCount = answers.length
-    const correctCount = answers.filter((a) => a.isCorrect).length
-    const wrongCount = total - correctCount
-    const unansweredCount = total - answeredCount
-
+    });
+    const ansMap = new Map(answers.map((a) => [a.questionId, a]));
+    const answeredCount = answers.length;
+    const correctCount = answers.filter((a) => a.isCorrect).length;
+    const wrongCount = total - correctCount;
+    const unansweredCount = total - answeredCount;
     const items = picked.map((row) => {
-      const q = row.question
-      const a = ansMap.get(q.id) ?? null
-
-      const opts = q.options
-      const dbCorrectId = q.correctOptionId
-      const dbCorrectText = q.correctAnswerText
-
-      let correctOption = dbCorrectId ? opts.find((o) => o.id === dbCorrectId) : null
-
+      const q = row.question;
+      const a = ansMap.get(q.id) ?? null;
+      const opts = q.options;
+      const dbCorrectId = q.correctOptionId;
+      const dbCorrectText = q.correctAnswerText;
+      let correctOption = dbCorrectId ? opts.find((o) => o.id === dbCorrectId) : null;
       if (!correctOption && dbCorrectText) {
-        const target = norm(dbCorrectText)
+        const target = norm(dbCorrectText);
         if (target) {
-          correctOption = opts.find((o) => norm(o.text) === target) || null
+          correctOption = opts.find((o) => norm(o.text) === target) || null;
         }
       }
-
-      const resolvedCorrectOptionId = correctOption?.id ?? dbCorrectId ?? null
-      const resolvedCorrectOptionText = correctOption?.text ?? (dbCorrectText || null)
-
+      const resolvedCorrectOptionId = correctOption?.id ?? dbCorrectId ?? null;
+      const resolvedCorrectOptionText = correctOption?.text ?? (dbCorrectText || null);
       return {
         order: row.order,
         answered: !!a,
         answerId: a?.id ?? null,
         createdAt: a?.createdAt ?? null,
         isCorrect: a?.isCorrect ?? null,
+        score: a?.score ?? null,
+        feedback: a?.feedback ?? null,
         flag: a?.flag ?? false,
-
         question: {
           id: q.id,
           text: q.text,
@@ -610,17 +649,15 @@ export class AttemptsService {
           correctOptionId: resolvedCorrectOptionId,
           correctOptionText: resolvedCorrectOptionText,
         },
-
         selected: a?.selectedOption
           ? {
             id: a.selectedOption?.id,
             text: a.selectedOption?.text,
           }
           : null,
-
-      }
-    })
-
+        studentTextAnswer: a?.studentTextAnswer ?? null,
+      };
+    });
     return {
       attempt: {
         id: attempt.id,
@@ -647,22 +684,20 @@ export class AttemptsService {
         unanswered: unansweredCount,
       },
       items,
-    }
+    };
   }
-
 
   async cleanupInProgress(userId: number) {
     const res = await this.prisma.attempt.deleteMany({
       where: { userId, status: "IN_PROGRESS" },
-    })
-    return res.count
+    });
+    return res.count;
   }
 
   async balanceHistory(userId: number, page = 1, limit = 20) {
-    const p = Math.max(1, Number(page) || 1)
-    const l = Math.min(100, Math.max(1, Number(limit) || 20))
-    const skip = (p - 1) * l
-
+    const p = Math.max(1, Number(page) || 1);
+    const l = Math.min(100, Math.max(1, Number(limit) || 20));
+    const skip = (p - 1) * l;
     const [items, total] = await this.prisma.$transaction([
       this.prisma.balanceTransaction.findMany({
         where: { userId },
@@ -688,8 +723,7 @@ export class AttemptsService {
         },
       }),
       this.prisma.balanceTransaction.count({ where: { userId } }),
-    ])
-
+    ]);
     return {
       page: p,
       limit: l,
@@ -714,31 +748,27 @@ export class AttemptsService {
           }
           : null,
       })),
-    }
+    };
   }
 
   async adminListResults(params: {
-    page?: number
-    limit?: number
-    q?: string
-    status?: "FINISHED" | "IN_PROGRESS"
+    page?: number;
+    limit?: number;
+    q?: string;
+    status?: "FINISHED" | "IN_PROGRESS";
   }) {
-    const p = Math.max(1, Number(params.page) || 1)
-    const l = Math.min(100, Math.max(1, Number(params.limit) || 20))
-    const skip = (p - 1) * l
-
-    const q = String(params.q || "").trim()
-    const status = params.status
-
-    const where: any = {}
-
+    const p = Math.max(1, Number(params.page) || 1);
+    const l = Math.min(100, Math.max(1, Number(params.limit) || 20));
+    const skip = (p - 1) * l;
+    const q = String(params.q || "").trim();
+    const status = params.status;
+    const where: any = {};
     if (status === "FINISHED") {
-      where.status = "FINISHED"
-      where.finishedAt = { not: null }
+      where.status = "FINISHED";
+      where.finishedAt = { not: null };
     } else if (status === "IN_PROGRESS") {
-      where.status = "IN_PROGRESS"
+      where.status = "IN_PROGRESS";
     }
-
     if (q) {
       where.OR = [
         { user: { email: { contains: q, mode: "insensitive" } } },
@@ -746,9 +776,8 @@ export class AttemptsService {
         { user: { lastName: { contains: q, mode: "insensitive" } } },
         { user: { publicId: { contains: q, mode: "insensitive" } } },
         { bank: { title: { contains: q, mode: "insensitive" } } },
-      ]
+      ];
     }
-
     const [items, total] = await this.prisma.$transaction([
       this.prisma.attempt.findMany({
         where,
@@ -767,8 +796,7 @@ export class AttemptsService {
         },
       }),
       this.prisma.attempt.count({ where }),
-    ])
-
+    ]);
     return {
       page: p,
       limit: l,
@@ -784,12 +812,12 @@ export class AttemptsService {
         user: a.user,
         bank: a.bank,
       })),
-    }
+    };
   }
-  async setFlag(attemptId: string, questionId: string, flag: boolean) {
-    const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } })
-    if (!attempt) throw new BadRequestException("Attempt not found")
 
+  async setFlag(attemptId: string, questionId: string, flag: boolean) {
+    const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } });
+    if (!attempt) throw new BadRequestException("Attempt not found");
     const row = await this.prisma.attemptAnswer.upsert({
       where: { attemptId_questionId: { attemptId, questionId } },
       create: {
@@ -809,8 +837,46 @@ export class AttemptsService {
         isCorrect: true,
         createdAt: true,
       },
-    })
+    });
+    return row;
+  }
 
-    return row
+  async updateAttemptAfterAi(attemptId: string) {
+    const attempt = await this.prisma.attempt.findUnique({
+      where: { id: attemptId },
+      include: { bank: true },
+    });
+    if (!attempt || attempt.bank.type !== "WRITING" || attempt.status !== "WAITING_AI") return;
+
+    const aiChecks = await this.prisma.aiCheckedAnswer.findMany({
+      where: {
+        attemptAnswer: { attemptId },
+      },
+    });
+    const allDone = aiChecks.length > 0 && aiChecks.every((check) => check.status === "DONE");
+    if (!allDone) return;
+
+    let totalScore = 0;
+    for (const check of aiChecks) {
+      totalScore += check.score || 0;
+      await this.prisma.attemptAnswer.update({
+        where: { id: check.attemptAnswerId },
+        data: {
+          score: check.score,
+          feedback: check.feedback,
+          isCorrect: (check.score || 0) > 0,
+        },
+      });
+    }
+
+    await this.prisma.attempt.update({
+      where: { id: attemptId },
+      data: {
+        status: "FINISHED",
+        score: totalScore,
+        finishedAt: new Date(),
+        total: aiChecks.length * 10,
+      },
+    });
   }
 }
