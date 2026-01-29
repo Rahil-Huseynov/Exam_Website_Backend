@@ -432,7 +432,8 @@ Tələblər:
    - zəif tərəfləri,
    - konkret səhvlər,
    - bu səhvlərin səbəbləri,
-   - bu səhvlərin necə düzəldilməli olduğu izah edilsin.
+   - bu səhvlərin necə düzəldilməli olduğu izah edilsin,
+   - Əgər riyazi misal və ya məsələlər varsa hesablamaların düzgünlüyü yoxlanılsın və səhvlər izah edilsin.
 3. Sual ilə cavab arasındakı uyğunluğu əsaslandıraraq qiymətləndir.
 4. Qiymətləndirmə 0–10 arası tam ədəd (integer) olmalıdır.
 5. Feedback ətraflı və izahlı olsun (təxminən 200–400 söz).
@@ -490,7 +491,8 @@ Tələblər:
    - zəif tərəfləri,
    - konkret səhvləri,
    - bu səhvlərin səbəbləri,
-   - bu səhvlərin necə düzəldilməli olduğu izah edilsin.
+   - bu səhvlərin necə düzəldilməli olduğu izah edilsin,
+   - Əgər riyazi misal və ya məsələlər varsa hesablamaların düzgünlüyü yoxlanılsın və səhvlər izah edilsin.
 4) Sual ilə cavab arasındakı uyğunluğu əsaslandıraraq qiymətləndir.
 5) Qiymətləndirmə 0–10 arası tam ədəd (integer) olmalıdır.
 6) Feedback ətraflı və izahlı olsun (təxminən 200–400 söz).

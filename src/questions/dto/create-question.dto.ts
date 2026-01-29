@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString, ValidateNested, ArrayMinSize } from 'class-validator';
+import { IsArray, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class QuestionOptionForCreateDto {
@@ -20,11 +20,11 @@ export class CreateQuestionDto {
   @IsString({ each: true })
   imageUrls?: string[];
 
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(2)
   @ValidateNested({ each: true })
   @Type(() => QuestionOptionForCreateDto)
-  options: QuestionOptionForCreateDto[];
+  options?: QuestionOptionForCreateDto[];
 
   @IsOptional()
   @IsString()

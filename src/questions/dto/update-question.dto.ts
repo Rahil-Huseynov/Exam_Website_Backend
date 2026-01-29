@@ -28,7 +28,6 @@ export class UpdateQuestionDto {
 
   @IsOptional()
   @IsArray()
-  @ArrayMinSize(2, { message: 'Ən azı 2 variant olmalıdır' })
   @ValidateNested({ each: true })
   @Type(() => QuestionOptionForUpdateDto)
   options?: QuestionOptionForUpdateDto[];
