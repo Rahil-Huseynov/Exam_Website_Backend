@@ -15,6 +15,7 @@ export class AiService {
   private memoryLimitBytes = Number(process.env.OLLAMA_MEMORY_LIMIT_BYTES) || 5 * 1024 * 1024 * 1024;
   private usePrlimitEnv = process.env.USE_PRLIMIT !== '0';
   private prlimitAvailable = false;
+  private lastPausedState: boolean | null = null;
 
   constructor(private readonly prisma: PrismaService) {
     try {
@@ -79,9 +80,6 @@ export class AiService {
     }
 
     this.scheduleIdleShutdown();
-    setInterval(() => {
-      this.logger.log(`📊 AI STATUS => paused=${this.paused}`);
-    }, 10000);
   }
 
   private async safeCheckWithRetry(aiCheckedAnswerId: string) {
@@ -100,14 +98,20 @@ export class AiService {
 
   private markActive() {
     if (this.paused) {
-      this.logger.warn('🟢 AI worker RESUMED (paused=false)');
       this.paused = false;
+
+      if (this.lastPausedState !== this.paused) {
+        this.logger.warn('🟢 AI worker RESUMED (paused=false)');
+        this.lastPausedState = this.paused;
+      }
     }
+
     if (this.idleTimer) {
       clearTimeout(this.idleTimer);
       this.idleTimer = undefined;
     }
   }
+
 
   private scheduleIdleShutdown() {
     if (this.idleTimer) clearTimeout(this.idleTimer);
@@ -116,7 +120,11 @@ export class AiService {
 
   private shutdownWorker() {
     this.paused = true;
-    this.logger.warn(`🟡 AI worker PAUSED (idle for ${this.idleTimeoutMs} ms)`);
+
+    if (this.lastPausedState !== this.paused) {
+      this.logger.warn(`🟡 AI worker PAUSED (idle for ${this.idleTimeoutMs} ms)`);
+      this.lastPausedState = this.paused;
+    }
 
     if (this.killOllamaOnIdle) {
       try {
