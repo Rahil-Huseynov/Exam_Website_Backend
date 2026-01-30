@@ -34,22 +34,18 @@ export class PdfConverterController {
           const dir = join(process.cwd(), 'uploads', 'pdf', randomName);
           try {
             fs.mkdirSync(dir, { recursive: true });
-          } catch (err) {
-          }
+          } catch (err) {}
+
           cb(null, dir);
         },
 
         filename: (req: any, file: Express.Multer.File, cb) => {
-          const fileHash = crypto.randomBytes(12).toString('hex'); // 24 hex simvol
+          const fileHash = crypto.randomBytes(12).toString('hex');
           const ext = extname(file.originalname) || '.pdf';
           const savedName = `${fileHash}${ext}`;
 
-          try {
-            req.savedFileHash = fileHash;
-            req.savedFilename = savedName;
-          } catch (e) {
-            /* ignore */
-          }
+          req.savedFileHash = fileHash;
+          req.savedFilename = savedName;
 
           cb(null, savedName);
         },
@@ -57,7 +53,7 @@ export class PdfConverterController {
 
       fileFilter: (req, file, cb) => {
         if (file.mimetype !== 'application/pdf') {
-          return cb(new Error('Yalnız PDF faylları qəbul olunur!'), false);
+          return cb(new Error('Yalnız PDF qəbul olunur!'), false);
         }
         cb(null, true);
       },
@@ -77,16 +73,24 @@ export class PdfConverterController {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    const savedFilename = (file.filename as string) || ((res as any).req?.savedFilename as string);
-    const savedHash = ((res as any).req?.savedFileHash as string) || null;
-
-    const useName = savedFilename ?? file.filename;
-    const useBase = savedHash ?? (useName ? useName.replace(/\.[^.]+$/, '') : Date.now().toString(16));
+    const savedHash =
+      (res.req as any)?.savedFileHash ||
+      file.filename.replace(/\.[^.]+$/, '');
 
     try {
+      // 🔥 ƏVVƏLƏN MÖVCUD ƏN SON NƏTİCƏNİ TAP
+      const existing = await this.pdfService.findLatestOutput(savedHash);
+
+      if (existing) {
+        res.write(`data: done:${encodeURIComponent(existing)}\n\n`);
+        res.end();
+        return;
+      }
+
+      // ❌ yoxdursa yenidən convert et
       const result = await this.pdfService.processPdfWithProgress(
         file.path,
-        useBase, 
+        savedHash,
         (percent) => {
           res.write(`data: ${percent}\n\n`);
         },
@@ -98,7 +102,9 @@ export class PdfConverterController {
         return;
       }
 
-      res.write(`data: done:${encodeURIComponent(result.outputFilename)}\n\n`);
+      res.write(
+        `data: done:${encodeURIComponent(result.outputFilename)}\n\n`,
+      );
       res.end();
     } catch (err: any) {
       this.logger.error(err?.message || err);

@@ -5,7 +5,6 @@ import { unlink, readdir, stat } from 'fs/promises';
 import { join } from 'path';
 import { Cron } from '@nestjs/schedule';
 import * as crypto from 'crypto';
-import * as path from 'path';
 
 const execAsync = promisify(exec);
 
@@ -34,7 +33,11 @@ export class PdfConverterService {
     try {
       await this.cleanTempFiles();
 
-      const safeBase = (baseName || crypto.randomBytes(6).toString('hex')).replace(/[^a-zA-Z0-9_-]/g, '');
+      const safeBase = (baseName || crypto.randomBytes(6).toString('hex')).replace(
+        /[^a-zA-Z0-9_-]/g,
+        '',
+      );
+
       const outputPdfName = `${safeBase}.pdf`;
 
       const steps = [
@@ -98,13 +101,17 @@ export class PdfConverterService {
       '/home/user/Desktop/Exam/EXAM_Backend/venv/bin/python';
 
     let command = `${pythonPath} scripts/${scriptName}`;
+
     for (const [key, value] of Object.entries(args)) {
       const safe = (value ?? '').replace(/"/g, '\\"');
       command += ` --${key}="${safe}"`;
     }
 
-    this.logger.log(`Çalışdır: ${command}`);
-    const { stdout, stderr } = await execAsync(command, { maxBuffer: 20 * 1024 * 1024 });
+    this.logger.log(`RUN: ${command}`);
+
+    const { stdout, stderr } = await execAsync(command, {
+      maxBuffer: 20 * 1024 * 1024,
+    });
 
     if (stderr && stderr.includes('Traceback')) {
       throw new Error(stderr);
@@ -123,14 +130,40 @@ export class PdfConverterService {
         for (const file of files) {
           try {
             await unlink(join(fullPath, file));
-          } catch (e) {
-          }
+          } catch (e) {}
         }
-      } catch (e) {
-      }
+      } catch (e) {}
     }
   }
 
+  // 🔥 ƏN SON NƏTİCƏNİ TARİXƏ GÖRƏ TAPIR
+  async findLatestOutput(base: string): Promise<string | null> {
+    const outputDir = join(process.cwd(), 'uploads', 'pdf-read');
+
+    try {
+      const files = await readdir(outputDir);
+      const matched: { name: string; time: number }[] = [];
+
+      for (const f of files) {
+        if (!f.toLowerCase().endsWith('.pdf')) continue;
+        if (!f.startsWith(base)) continue;
+
+        try {
+          const st = await stat(join(outputDir, f));
+          matched.push({ name: f, time: st.mtimeMs });
+        } catch {}
+      }
+
+      if (matched.length === 0) return null;
+
+      matched.sort((a, b) => b.time - a.time);
+      return matched[0].name;
+    } catch {
+      return null;
+    }
+  }
+
+  // 🧹 24 saatdan köhnələri silir
   @Cron('0 0 * * * *')
   async cleanOldPdfs(): Promise<void> {
     const outputDir = join(process.cwd(), 'uploads', 'pdf-read');
@@ -141,17 +174,15 @@ export class PdfConverterService {
       for (const file of files) {
         const filePath = join(outputDir, file);
         const stats = await stat(filePath);
-        const age = now - stats.birthtimeMs;
+        const age = now - stats.mtimeMs;
 
         if (age > 86400000) {
           try {
             await unlink(filePath);
             this.logger.log(`Silindi: ${file}`);
-          } catch (e) {
-          }
+          } catch {}
         }
       }
-    } catch (e) {
-    }
+    } catch {}
   }
 }
