@@ -94,25 +94,13 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const data = await this.authService.signin(dto)
-
     const token = (data as any)?.accessToken || (data as any)?.access_token
-    if (token) {
-      res.cookie("accessToken", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 1000 * 60 * 60 * 24 * 7,
-        path: "/",
-      })
-    }
-
     return data
   }
-
+  
   @Public()
   @Post("logout")
   async logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie("accessToken", { path: "/" })
     return { ok: true }
   }
 
