@@ -4,6 +4,8 @@ import { promisify } from 'util';
 import { unlink, readdir, stat } from 'fs/promises';
 import { join, dirname } from 'path';
 import { Cron } from '@nestjs/schedule';
+import * as crypto from 'crypto';
+import * as path from 'path';
 
 const execAsync = promisify(exec);
 
@@ -29,6 +31,7 @@ export class PdfConverterService {
    * originalFilename - faylın orijinal adı (məs: my.pdf) - yalnız log/çıxış üçün
    * onProgress - callback(percent)
    */
+
   async processPdfWithProgress(
     inputFile: string,
     originalFilename: string,
@@ -37,6 +40,10 @@ export class PdfConverterService {
     try {
       await this.cleanTempFiles();
 
+      const hash = crypto.randomBytes(6).toString('hex');
+      const baseName = path.parse(originalFilename).name;
+      const outputPdfName = `${hash}_${baseName}.pdf`;
+
       const steps = [
         () =>
           this.runPythonScript('pdf_to_txt.py', {
@@ -44,27 +51,33 @@ export class PdfConverterService {
             output_dir: 'txt/pdf_txt',
             logs_dir: 'logs/convert_pdf_txt',
           }),
+
         () =>
           this.runPythonScript('parse_txt_to_json.py', {
             input_dir: 'txt/pdf_txt',
             json_output_dir: 'json_results',
             issues_output_dir: 'json_results/json_issues',
           }),
+
         () =>
           this.runPythonScript('json_to_txt.py', {
             in_dir: 'json_results',
             out_dir: 'txt/json_txt',
           }),
+
         () =>
           this.runPythonScript('txt_to_docx.py', {
             input_dir: 'txt/pdf_txt',
             output_dir: 'word',
           }),
+
         () =>
           this.runPythonScript('docx_to_pdf.py', {
             input_dir: 'word',
             output_dir: 'uploads/pdf-read',
+            output_name: outputPdfName, 
           }),
+
         () =>
           this.runPythonScript('shift_answers.py', {
             issues_dir: 'json_results/json_issues',
@@ -77,15 +90,7 @@ export class PdfConverterService {
         onProgress(percent);
       }
 
-      const outputDir = './uploads/pdf-read';
-      const files = await readdir(outputDir);
-      const outputFile = files.find((f) => f.endsWith('.pdf'));
-
-      if (!outputFile) {
-        throw new Error('Son PDF yaradılmadı!');
-      }
-
-      return { success: true, outputFilename: outputFile };
+      return { success: true, outputFilename: outputPdfName };
     } catch (error: any) {
       this.logger.error(error.message || error);
       return { success: false, error: error.message || String(error) };
@@ -97,7 +102,6 @@ export class PdfConverterService {
     args: Record<string, string> = {},
   ): Promise<void> {
     const pythonPath =
-      // '/mnt/Disk_1TB/Exam_Website/Exam_Website_Backend/venv/bin/python';
       '/home/user/Desktop/Exam/EXAM_Backend/venv/bin/python';
     let command = `${pythonPath} scripts/${scriptName}`;
     for (const [key, value] of Object.entries(args)) {
@@ -132,7 +136,7 @@ export class PdfConverterService {
 
   @Cron('0 0 * * * *')
   async cleanOldPdfs(): Promise<void> {
-    const outputDir = './uploads/pdf-read';
+    const outputDir = join(process.cwd(), 'uploads', 'pdf-read');
     try {
       const files = await readdir(outputDir);
       const now = Date.now();
