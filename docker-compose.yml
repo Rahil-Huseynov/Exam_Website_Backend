@@ -38,7 +38,20 @@ services:
       bash -lc '
         while true; do
           TS=$$(date +%Y%m%d_%H%M%S);
+
+          echo "=== BACKUP START: $${TS} ===";
+
+          # Database backup
           PGPASSWORD="$${POSTGRES_PASSWORD}" pg_dump -h pg_main2 -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" > /backups/nest_$${TS}.sql;
+
+          # Uploads backup
+          tar -czf /backups/uploads_$${TS}.tar.gz -C / uploads;
+
+          # Delete backups older than BACKUP_KEEP_DAYS
+          find /backups -type f -mtime +$${BACKUP_KEEP_DAYS} -delete;
+
+          echo "=== BACKUP FINISHED ===";
+
           sleep "$${BACKUP_INTERVAL_SECONDS}";
         done
       '
