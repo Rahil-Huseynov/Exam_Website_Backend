@@ -24,6 +24,7 @@ import { SecurityLogMiddleware } from './common/middleware/security-log.middlewa
 import { HttpLoggingInterceptor } from './common/interceptors/http-logging.interceptor';
 import { CustomCacheInterceptor } from './common/interceptors/custom-cache.interceptor';
 import { AiModule } from './ai-checker/ai.module';
+import { PdfConverterModule } from './pdf-converter/pdfconverter.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { AiModule } from './ai-checker/ai.module';
     UsersModule,
     AttemptsModule,
     NewsModule,
+    PdfConverterModule,
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
       serveRoot: '/uploads',
