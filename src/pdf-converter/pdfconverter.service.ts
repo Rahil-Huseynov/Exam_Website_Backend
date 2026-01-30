@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { unlink, readdir, stat } from 'fs/promises';
-import { join, dirname } from 'path';
+import { join } from 'path';
 import { Cron } from '@nestjs/schedule';
 import * as crypto from 'crypto';
 import * as path from 'path';
@@ -26,23 +26,16 @@ export class PdfConverterService {
     'answers/shifted',
   ];
 
-  /**
-   * inputFile - tam yol (məs: uploads/pdf/<rand>/my.pdf)
-   * originalFilename - faylın orijinal adı (məs: my.pdf) - yalnız log/çıxış üçün
-   * onProgress - callback(percent)
-   */
-
   async processPdfWithProgress(
     inputFile: string,
-    originalFilename: string,
+    baseName: string,
     onProgress: (percent: number) => void,
   ): Promise<{ success: boolean; outputFilename?: string; error?: string }> {
     try {
       await this.cleanTempFiles();
 
-      const hash = crypto.randomBytes(6).toString('hex');
-      const baseName = path.parse(originalFilename).name;
-      const outputPdfName = `${hash}_${baseName}.pdf`;
+      const safeBase = (baseName || crypto.randomBytes(6).toString('hex')).replace(/[^a-zA-Z0-9_-]/g, '');
+      const outputPdfName = `${safeBase}.pdf`;
 
       const steps = [
         () =>
@@ -74,8 +67,8 @@ export class PdfConverterService {
         () =>
           this.runPythonScript('docx_to_pdf.py', {
             input_dir: 'word',
-            output_dir: 'uploads/pdf-read',
-            output_name: outputPdfName, 
+            output_dir: join('uploads', 'pdf-read'),
+            output_name: outputPdfName,
           }),
 
         () =>
@@ -103,6 +96,7 @@ export class PdfConverterService {
   ): Promise<void> {
     const pythonPath =
       '/home/user/Desktop/Exam/EXAM_Backend/venv/bin/python';
+
     let command = `${pythonPath} scripts/${scriptName}`;
     for (const [key, value] of Object.entries(args)) {
       const safe = (value ?? '').replace(/"/g, '\\"');
@@ -110,7 +104,7 @@ export class PdfConverterService {
     }
 
     this.logger.log(`Çalışdır: ${command}`);
-    const { stdout, stderr } = await execAsync(command);
+    const { stdout, stderr } = await execAsync(command, { maxBuffer: 20 * 1024 * 1024 });
 
     if (stderr && stderr.includes('Traceback')) {
       throw new Error(stderr);
@@ -127,7 +121,10 @@ export class PdfConverterService {
       try {
         const files = await readdir(fullPath);
         for (const file of files) {
-          await unlink(join(fullPath, file));
+          try {
+            await unlink(join(fullPath, file));
+          } catch (e) {
+          }
         }
       } catch (e) {
       }
@@ -147,8 +144,11 @@ export class PdfConverterService {
         const age = now - stats.birthtimeMs;
 
         if (age > 86400000) {
-          await unlink(filePath);
-          this.logger.log(`Silindi: ${file}`);
+          try {
+            await unlink(filePath);
+            this.logger.log(`Silindi: ${file}`);
+          } catch (e) {
+          }
         }
       }
     } catch (e) {
