@@ -96,8 +96,10 @@ export class PdfConverterService {
     scriptName: string,
     args: Record<string, string> = {},
   ): Promise<void> {
-    let command = `python scripts/${scriptName}`;
-
+    const pythonPath =
+      // '/mnt/Disk_1TB/Exam_Website/Exam_Website_Backend/venv/bin/python';
+      '/home/user/Desktop/Exam/EXAM_Backend/venv/bin/python';
+    let command = `${pythonPath} scripts/${scriptName}`;
     for (const [key, value] of Object.entries(args)) {
       const safe = (value ?? '').replace(/"/g, '\\"');
       command += ` --${key}="${safe}"`;
