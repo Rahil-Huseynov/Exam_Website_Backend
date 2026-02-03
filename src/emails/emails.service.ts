@@ -27,13 +27,10 @@ export class EmailsService {
 
   private brand() {
     return {
-      // siteName: "ImtahanVer.net",
-      siteName: "TEST",
-      // siteUrl: this.config.get<string>("APP_URL") || "https://imtahanver.net",
-      siteUrl: this.config.get<string>("APP_URL") || "TEST",
-      logoUrl: this.config.get<string>("BRAND_LOGO_URL") || "http://217.64.24.9:3002/uploads/1Logo.png",
-      // supportEmail: this.config.get<string>("CONTACT_TO_EMAIL") || "info@imtahanver.net",
-      supportEmail: this.config.get<string>("CONTACT_TO_EMAIL") || "TEST",
+      siteName: "ImtahanVer.net",
+      siteUrl: this.config.get<string>("APP_URL") || "https://imtahanver.net",
+      logoUrl: this.config.get<string>("BRAND_LOGO_URL") || "https://api.imtahanver.net/uploads/Logo.png",
+      supportEmail: this.config.get<string>("CONTACT_TO_EMAIL") || "info@imtahanver.net",
     }
   }
 
