@@ -5,7 +5,9 @@ import { Request, Response, NextFunction } from 'express';
 export class OriginCheckMiddleware implements NestMiddleware {
   private allowedOrigins = [
     'http://localhost:3000',
-    'http://217.64.24.9:3003'
+    'http://217.64.24.9:3003',
+'https://imtahanver.net',
+'http://imtahanver.net'
   ];
 
   use(req: Request, res: Response, next: NextFunction) {
