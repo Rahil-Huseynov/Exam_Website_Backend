@@ -25,6 +25,7 @@ import { HttpLoggingInterceptor } from './common/interceptors/http-logging.inter
 import { CustomCacheInterceptor } from './common/interceptors/custom-cache.interceptor';
 import { AiModule } from './ai-checker/ai.module';
 import { PdfConverterModule } from './pdf-converter/pdfconverter.module';
+import { FeatureModule } from './feature/feature.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { PdfConverterModule } from './pdf-converter/pdfconverter.module';
     AttemptsModule,
     NewsModule,
     PdfConverterModule,
+    FeatureModule,
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
       serveRoot: '/uploads',
