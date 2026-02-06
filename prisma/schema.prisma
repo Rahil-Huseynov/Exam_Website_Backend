@@ -107,6 +107,7 @@ model User {
   examTokens ExamToken[]
   passwordResetTokens PasswordResetToken[]
   balanceTransactions BalanceTransaction[]
+  paymentResponses PaymentResponse[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@map("users")
@@ -378,4 +379,22 @@ model FeatureToggle {
   key       String   @unique
   enabled   Boolean  @default(false)
   updatedAt DateTime @updatedAt
+}
+
+model PaymentResponse {
+  id            String   @id @default(cuid())
+  userId        Int?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  orderId       String?  @db.VarChar(255)
+  transactionId String?  
+  operationCode String?
+  status        String?
+  rrn           String?
+  payload       Json?
+  signature     String? 
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([userId])
 }
