@@ -4,7 +4,7 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 import { CallbackDto } from './dto/callback.dto';
 import { ConfirmDto } from './dto/confirm.dto';
 
-@Controller('api/payment') // backend API prefix (adjust as your app uses)
+@Controller('payment') // backend API prefix (adjust as your app uses)
 export class PaymentController {
   constructor(private readonly svc: PaymentService) { }
 
