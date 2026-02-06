@@ -26,6 +26,7 @@ import { CustomCacheInterceptor } from './common/interceptors/custom-cache.inter
 import { AiModule } from './ai-checker/ai.module';
 import { PdfConverterModule } from './pdf-converter/pdfconverter.module';
 import { FeatureModule } from './feature/feature.module';
+import { PaymentModule } from './payment/payment.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { FeatureModule } from './feature/feature.module';
     UsersModule,
     AttemptsModule,
     NewsModule,
+    PaymentModule,
     PdfConverterModule,
     FeatureModule,
     ServeStaticModule.forRoot({
