@@ -7,247 +7,276 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 
 @Injectable()
 export class PaymentService {
-    private readonly logger = new Logger(PaymentService.name);
-    private publicKey: string;
-    private privateKey: string;
-    private requestUrl: string;
-    private getStatusUrl: string;
+  private readonly logger = new Logger(PaymentService.name);
 
-    constructor(private readonly http: HttpService, private prisma: PrismaService) {
-        this.publicKey = process.env.EPOINT_PUBLIC_KEY ?? '';
-        this.privateKey = process.env.EPOINT_PRIVATE_KEY ?? '';
-        this.requestUrl = process.env.EPOINT_REQUEST_URL ?? '';
-        this.getStatusUrl = process.env.EPOINT_GET_STATUS_URL ?? '';
+  private publicKey = process.env.EPOINT_PUBLIC_KEY ?? '';
+  private privateKey = process.env.EPOINT_PRIVATE_KEY ?? '';
+  private requestUrl = process.env.EPOINT_REQUEST_URL ?? '';
+  private getStatusUrl = process.env.EPOINT_GET_STATUS_URL ?? '';
 
-        if (!this.publicKey) this.logger.warn('EPOINT_PUBLIC_KEY not set');
-        if (!this.privateKey) {
-            throw new Error('EPOINT_PRIVATE_KEY is required in environment variables');
-        }
+  // Frontend redirect URLs (user visible)
+  private successRedirect = process.env.FRONTEND_SUCCESS_URL ?? 'https://imtahanver.net/payment-success';
+  private errorRedirect = process.env.FRONTEND_ERROR_URL ?? 'https://imtahanver.net/payment-error';
+  // Epoint server-to-server result callback (must be reachable by Epoint)
+  private resultUrl = process.env.RESULT_URL ?? 'https://imtahanver.net/payment-result';
+
+  constructor(private readonly http: HttpService, private prisma: PrismaService) {
+    if (!this.privateKey) {
+      throw new Error('EPOINT_PRIVATE_KEY is required in env');
+    }
+  }
+
+  private buildData(payload: Record<string, any>): string {
+    return Buffer.from(JSON.stringify(payload)).toString('base64');
+  }
+
+  private makeSignature(dataBase64: string): string {
+    const s = `${this.privateKey}${dataBase64}${this.privateKey}`;
+    const sha = crypto.createHash('sha1').update(s).digest();
+    return sha.toString('base64');
+  }
+
+  // Create payment: return epoint response (contains redirect_url etc)
+  async createPayment(dto: CreatePaymentDto) {
+    if (!dto.userId || !dto.order_id || !dto.amount) throw new Error('userId, order_id and amount required');
+
+    const payload = {
+      public_key: this.publicKey,
+      amount: dto.amount,
+      currency: 'AZN',
+      language: 'az',
+      order_id: dto.order_id,
+      description: dto.description ?? '',
+      // frontend pages where user will be redirected
+      success_redirect_url: this.successRedirect,
+      error_redirect_url: this.errorRedirect,
+      // Epoint will POST result to this URL (server-to-server)
+      result_url: this.resultUrl,
+    };
+
+    const data = this.buildData(payload);
+    const signature = this.makeSignature(data);
+
+    const form = new URLSearchParams();
+    form.append('data', data);
+    form.append('signature', signature);
+
+    const resp$ = this.http.post(this.requestUrl, form.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+
+    const axiosRes = await lastValueFrom(resp$);
+    const resJson = axiosRes.data;
+
+    // Save initial payment (PENDING)
+    await this.prisma.payment.create({
+      data: {
+        userId: dto.userId,
+        orderId: dto.order_id,
+        amount: dto.amount,
+        transactionId: resJson.transaction ?? null,
+        status: 'PENDING',
+      },
+    });
+
+    // Also record response if available
+    await this.prisma.paymentResponse.create({
+      data: {
+        userId: dto.userId,
+        orderId: dto.order_id,
+        transactionId: resJson.transaction ?? null,
+        status: resJson.status ?? null,
+        rrn: resJson.rrn ?? null,
+        payload: resJson,
+        signature,
+      },
+    });
+
+    return resJson;
+  }
+
+  // Centralized success processing logic (idempotent)
+  private async processSuccess(orderId: string, transactionId: string | null, amount: number, rrn?: string | null) {
+    if (!orderId) throw new Error('orderId required for processing success');
+
+    const payment = await this.prisma.payment.findUnique({ where: { orderId } });
+    if (!payment) {
+      this.logger.warn(`processSuccess: payment record not found for order ${orderId}`);
+      return { message: 'payment not found' };
     }
 
-    private makeSignature(dataBase64: string): string {
-        if (!this.privateKey) throw new Error('EPOINT_PRIVATE_KEY is not set');
-
-        const s = `${this.privateKey}${dataBase64}${this.privateKey}`;
-        const shaBuf = crypto.createHash('sha1').update(s).digest();
-        return shaBuf.toString('base64');
+    // If already SUCCESS, do nothing
+    if (payment.status === 'SUCCESS') {
+      this.logger.log(`processSuccess: already SUCCESS for order ${orderId}`);
+      return { message: 'already processed' };
     }
 
-    private buildData(payload: Record<string, any>): string {
-        const json = JSON.stringify(payload);
-        return Buffer.from(json).toString('base64');
+    const noteIdentifier = `Epoint transaction ${transactionId ?? ''} order ${orderId}`;
+
+    // Check existing balance transaction to avoid double-credit
+    const existingTx = await this.prisma.balanceTransaction.findFirst({
+      where: {
+        userId: payment.userId,
+        note: { contains: transactionId ?? orderId ?? '' },
+      },
+    });
+
+    if (existingTx) {
+      // Still update payment status if needed
+      await this.prisma.payment.update({
+        where: { orderId },
+        data: { status: 'SUCCESS', transactionId: transactionId ?? payment.transactionId },
+      });
+      this.logger.log(`processSuccess: found existing balanceTransaction, skipping credit for order ${orderId}`);
+      return { message: 'already credited' };
     }
 
-    async createPayment(dto: CreatePaymentDto): Promise<any> {
-        if (!this.privateKey) throw new Error('Epoint private key missing in env');
+    // perform transactional update: mark payment success + update user balance + create balanceTransaction
+    await this.prisma.$transaction(async (tx) => {
+      await tx.payment.update({
+        where: { orderId },
+        data: { status: 'SUCCESS', transactionId: transactionId ?? payment.transactionId },
+      });
 
-        const userId = (dto as any).userId;
-        if (!userId || typeof userId !== 'number') {
-            throw new Error('userId is required and must be a valid number');
-        }
+      const user = await tx.user.findUnique({ where: { id: payment.userId } });
+      if (!user) throw new Error('User not found');
 
-        const payload = {
-            public_key: this.publicKey,
-            amount: dto.amount,
-            currency: 'AZN',
-            language: 'az',
-            order_id: dto.order_id,
-            description: dto.description ?? '',
-            success_redirect_url: process.env.SUCCESS_REDIRECT_URL ?? null,
-            error_redirect_url: process.env.ERROR_REDIRECT_URL ?? null,
-        };
+      const before = Number(user.balance ?? 0);
+      const after = Number((before + Number(amount)).toFixed(2));
 
-        const data = this.buildData(payload);
-        const signature = this.makeSignature(data);
+      await tx.user.update({
+        where: { id: user.id },
+        data: { balance: after.toString() },
+      });
 
-        const form = new URLSearchParams();
-        form.append('data', data);
-        form.append('signature', signature);
+      await tx.balanceTransaction.create({
+        data: {
+          userId: user.id,
+          adminId: null,
+          amount: Number(amount),
+          currency: 'AZN',
+          type: 'ADMIN_TOPUP',
+          note: noteIdentifier,
+          balanceBefore: before,
+          balanceAfter: after,
+          bankId: null,
+          attemptId: null,
+        },
+      });
+    });
 
-        const resp$ = this.http.post(this.requestUrl, form.toString(), {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        });
+    this.logger.log(`processSuccess: credited user ${payment.userId} for order ${orderId} amount ${amount}`);
+    return { message: 'credited' };
+  }
 
-        const axiosRes = await lastValueFrom(resp$);
-        const resJson = axiosRes.data;
-
-        await this.prisma.payment.create({
-            data: {
-                userId,
-                orderId: dto.order_id,
-                amount: dto.amount,
-                transactionId: resJson.transaction ?? null,
-                status: 'PENDING',
-            },
-        });
-
-        await this.prisma.paymentResponse.create({
-            data: {
-                userId,
-                orderId: dto.order_id,
-                transactionId: resJson.transaction ?? null,
-                status: resJson.status ?? null,
-                rrn: resJson.rrn ?? null,
-                payload: resJson,
-                signature: signature,
-            },
-        });
-
-        return resJson;
+  // Handle server-to-server callback (result_url)
+  async handleResultCallback(dataBase64: string, signature: string) {
+    // verify signature
+    const expected = this.makeSignature(dataBase64);
+    if (expected !== signature) {
+      this.logger.warn('Invalid signature on result callback');
+      throw new Error('Invalid signature');
     }
 
-    async handleCallback(dataBase64: string, signature: string): Promise<any> {
-        if (!this.privateKey) throw new Error('Epoint private key missing in env');
+    const decoded = Buffer.from(dataBase64, 'base64').toString('utf-8');
+    const payload = JSON.parse(decoded) as any;
 
-        const expectedSignature = this.makeSignature(dataBase64);
-        if (expectedSignature !== signature) {
-            throw new Error('Invalid signature');
-        }
+    const orderId: string | null = payload.order_id ?? null;
+    const transaction: string | null = payload.transaction ?? null;
+    const status: string | null = (payload.status ?? null) as string | null;
+    const amount: number = payload.amount ? Number(payload.amount) : 0;
+    const rrn: string | null = payload.rrn ?? null;
 
-        const decoded = Buffer.from(dataBase64, 'base64').toString('utf-8');
-        const payload = JSON.parse(decoded) as Record<string, any>;
-
-        const transactionId: string | null = payload.transaction ?? null;
-        const orderId: string | null = payload.order_id ?? null;
-        const status: string | null = payload.status ?? null;
-        const amount = payload.amount ? Number(payload.amount) : 0;
-
-        let existing: any = null;
-        if (transactionId) {
-            existing = await this.prisma.paymentResponse.findFirst({ where: { transactionId } });
-        }
-        if (!existing && orderId) {
-            existing = await this.prisma.paymentResponse.findFirst({ where: { orderId } });
-        }
-
-        if (existing && existing.status === 'success' && status === 'success') {
-            return existing;
-        }
-
-        let pr;
-        if (existing) {
-            pr = await this.prisma.paymentResponse.update({
-                where: { id: existing.id },
-                data: {
-                    transactionId,
-                    status,
-                    rrn: payload.rrn ?? null,
-                    payload,
-                    signature,
-                },
-            });
-        } else {
-            pr = await this.prisma.paymentResponse.create({
-                data: {
-                    userId: null, 
-                    orderId,
-                    transactionId,
-                    status,
-                    rrn: payload.rrn ?? null,
-                    payload,
-                    signature,
-                },
-            });
-        }
-
-        if (orderId) {
-            const paymentRecord = await this.prisma.payment.findUnique({
-                where: { orderId },
-            });
-
-            if (paymentRecord && pr.userId === null) {
-                await this.prisma.paymentResponse.update({
-                    where: { id: pr.id },
-                    data: { userId: paymentRecord.userId },
-                });
-            }
-
-            if (status && status.toLowerCase() === 'success') {
-                if (!paymentRecord) {
-                    this.logger.warn(`Success callback but no Payment record for orderId ${orderId}`);
-                } else if (paymentRecord.status === 'SUCCESS') {
-                    this.logger.log(`Already processed success payment for orderId ${orderId}`);
-                } else {
-                    await this.prisma.payment.update({
-                        where: { orderId },
-                        data: {
-                            status: 'SUCCESS',
-                            transactionId: transactionId ?? paymentRecord.transactionId,
-                        },
-                    });
-
-                    const userId = paymentRecord.userId;
-
-                    const existingTx = await this.prisma.balanceTransaction.findFirst({
-                        where: {
-                            userId,
-                            note: { contains: transactionId ?? orderId ?? '' },
-                        },
-                    });
-
-                    if (!existingTx && amount > 0) {
-                        await this.prisma.$transaction(async (tx) => {
-                            const user = await tx.user.findUnique({ where: { id: userId } });
-                            if (!user) throw new Error('User not found to credit balance');
-
-                            const before = Number(user.balance);
-                            const after = Number((before + amount).toFixed(2));
-
-                            await tx.user.update({
-                                where: { id: userId },
-                                data: { balance: after.toString() },
-                            });
-
-                            await tx.balanceTransaction.create({
-                                data: {
-                                    userId,
-                                    adminId: null,
-                                    amount,
-                                    currency: 'AZN',
-                                    type: 'ADMIN_TOPUP',
-                                    note: `Epoint transaction ${transactionId ?? ''} order ${orderId ?? ''}`,
-                                    balanceBefore: before,
-                                    balanceAfter: after,
-                                    bankId: null,
-                                    attemptId: null,
-                                },
-                            });
-                        });
-                    }
-                }
-            } else if (paymentRecord) {
-                await this.prisma.payment.update({
-                    where: { orderId },
-                    data: {
-                        status: 'FAILED',
-                        transactionId,
-                    },
-                });
-            }
-        }
-
-        return pr;
+    // Save / update paymentResponse for records
+    let existingResp:any = null;
+    if (transaction) {
+      existingResp = await this.prisma.paymentResponse.findFirst({ where: { transactionId: transaction } });
+    }
+    if (!existingResp && orderId) {
+      existingResp = await this.prisma.paymentResponse.findFirst({ where: { orderId } });
     }
 
-    async checkStatus(transactionOrOrder: { transaction?: string; order_id?: string }): Promise<any> {
-        if (!this.privateKey) throw new Error('Epoint private key missing in env');
-
-        const payload: Record<string, any> = { public_key: this.publicKey };
-        if (transactionOrOrder.transaction) payload.transaction = transactionOrOrder.transaction;
-        if (transactionOrOrder.order_id) payload.order_id = transactionOrOrder.order_id;
-
-        const data = this.buildData(payload);
-        const signature = this.makeSignature(data);
-
-        const form = new URLSearchParams();
-        form.append('data', data);
-        form.append('signature', signature);
-
-        const resp$ = this.http.post(this.getStatusUrl, form.toString(), {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        });
-
-        const axiosRes = await lastValueFrom(resp$);
-        return axiosRes.data;
+    if (existingResp && existingResp.status === 'success' && status === 'success') {
+      // already processed
+      return existingResp;
     }
+
+    let pr;
+    if (existingResp) {
+      pr = await this.prisma.paymentResponse.update({
+        where: { id: existingResp.id },
+        data: { transactionId: transaction, status, rrn, payload, signature },
+      });
+    } else {
+      pr = await this.prisma.paymentResponse.create({
+        data: {
+          userId: null,
+          orderId,
+          transactionId: transaction,
+          status,
+          rrn,
+          payload,
+          signature,
+        },
+      });
+    }
+
+    // If status success -> process success (idempotent)
+    if (status && status.toLowerCase() === 'success' && orderId) {
+      try {
+        await this.processSuccess(orderId, transaction, amount, rrn);
+      } catch (err) {
+        this.logger.error(`Error processing success for order ${orderId}: ${err.message ?? err}`);
+        // do not throw — return 200 to Epoint, but log the issue
+      }
+    } else if (orderId) {
+      // mark payment as failed if present
+      await this.prisma.payment.update({
+        where: { orderId },
+        data: { status: 'FAILED', transactionId: transaction ?? undefined },
+      });
+    }
+
+    return pr;
+  }
+
+  // Called by frontend when user lands on frontend success page.
+  // This will call epoint get-status API to confirm the true status, then process
+  async confirmAndProcess(order_id: string, transaction?: string) {
+    if (!order_id) throw new Error('order_id required');
+
+    // Call Epoint get-status
+    const payload: any = { public_key: this.publicKey, order_id };
+    if (transaction) payload.transaction = transaction;
+
+    const data = this.buildData(payload);
+    const signature = this.makeSignature(data);
+    const form = new URLSearchParams();
+    form.append('data', data);
+    form.append('signature', signature);
+
+    const resp$ = this.http.post(this.getStatusUrl, form.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+
+    const axiosRes = await lastValueFrom(resp$);
+    const resJson = axiosRes.data;
+
+    // resJson should contain status and amount etc. Follow same processing rules as callback
+    const status = resJson.status ?? null;
+    const transactionId = resJson.transaction ?? transaction ?? null;
+    const amount = resJson.amount ? Number(resJson.amount) : 0;
+    const rrn = resJson.rrn ?? null;
+
+    if (status && String(status).toLowerCase() === 'success') {
+      return await this.processSuccess(order_id, transactionId, amount, rrn);
+    } else {
+      // mark failed
+      await this.prisma.payment.update({
+        where: { orderId: order_id },
+        data: { status: 'FAILED', transactionId: transactionId ?? undefined },
+      });
+      return { message: 'not success' };
+    }
+  }
 }
