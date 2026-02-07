@@ -4,7 +4,7 @@ import { lastValueFrom } from 'rxjs';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
-import { PaymentResponse, Payment, PaymentStatus } from '@prisma/client';
+import { Payment, PaymentStatus } from '@prisma/client';
 
 @Injectable()
 export class PaymentService {
@@ -38,9 +38,12 @@ export class PaymentService {
     return Buffer.from(json).toString('base64');
   }
 
+  // CREATE PAYMENT
   async createPayment(dto: CreatePaymentDto): Promise<any> {
     if (!this.privateKey) throw new Error('Epoint private key missing in env');
     if (!dto.userId) throw new Error('userId is required to create payment');
+    if (!dto.order_id) throw new Error('order_id is required');
+    if (!dto.amount || Number(dto.amount) <= 0) throw new Error('amount must be > 0');
 
     const payment = await this.prisma.payment.create({
       data: {
@@ -70,39 +73,61 @@ export class PaymentService {
     form.append('data', data);
     form.append('signature', signature);
 
-    const resp$ = this.http.post(this.requestUrl, form.toString(), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
-    const axiosRes = await lastValueFrom(resp$);
-    const resJson = axiosRes.data;
-
-    if (resJson.status === 'success' && resJson.transaction) {
-      await this.prisma.payment.update({
-        where: { orderId: dto.order_id },
-        data: { transactionId: resJson.transaction },
+    try {
+      const resp$ = this.http.post(this.requestUrl, form.toString(), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
+      const axiosRes = await lastValueFrom(resp$);
+      const resJson = axiosRes.data;
+
+      if (resJson.status === 'success' && resJson.transaction) {
+        await this.prisma.payment.update({
+          where: { orderId: dto.order_id },
+          data: { transactionId: resJson.transaction },
+        });
+      }
+
+      await this.prisma.paymentResponse.create({
+        data: {
+          userId: dto.userId,
+          orderId: dto.order_id,
+          transactionId: resJson.transaction ?? null,
+          status: resJson.status ?? 'pending',
+          rrn: resJson.rrn ?? null,
+          payload: resJson,
+          signature,
+        },
+      });
+
+      return resJson;
+    } catch (err: any) {
+      this.logger.error(`createPayment: Epoint request failed for order ${dto.order_id}: ${err?.message ?? err}`);
+      // store failure response for audit
+      await this.prisma.paymentResponse.create({
+        data: {
+          userId: dto.userId,
+          orderId: dto.order_id,
+          transactionId: null,
+          status: 'error',
+          rrn: null,
+          payload: { error: err?.message ?? String(err) },
+          signature,
+        },
+      });
+      throw err;
     }
-
-    await this.prisma.paymentResponse.create({
-      data: {
-        userId: dto.userId,
-        orderId: dto.order_id,
-        transactionId: resJson.transaction ?? null,
-        status: resJson.status ?? 'pending',
-        rrn: resJson.rrn ?? null,
-        payload: resJson,
-        signature,
-      },
-    });
-
-    return resJson;
   }
 
+  // CALLBACK HANDLER (server->server)
   async handleCallback(dataBase64: string, signature: string): Promise<any> {
     if (!this.privateKey) throw new Error('Epoint private key missing in env');
 
     const expectedSignature = this.makeSignature(dataBase64);
-    if (expectedSignature !== signature) {
+    // timing-safe comparison
+    const expectedBuf = Buffer.from(expectedSignature);
+    const providedBuf = Buffer.from(signature);
+    if (expectedBuf.length !== providedBuf.length || !crypto.timingSafeEqual(expectedBuf, providedBuf)) {
+      this.logger.warn('handleCallback: invalid signature');
       throw new Error('Invalid signature');
     }
 
@@ -111,17 +136,19 @@ export class PaymentService {
 
     const transactionId = payload.transaction ?? null;
     const orderId = payload.order_id ?? null;
-    const remoteStatus = payload.status?.toLowerCase() ?? null;
+    const remoteStatus = (payload.status ?? '').toLowerCase();
     const amount = payload.amount ? Number(payload.amount) : 0;
 
     if (!orderId) throw new Error('No orderId in callback payload');
 
+    // find payment by orderId or transactionId
     let payment = await this.prisma.payment.findFirst({
       where: { OR: [{ orderId }, { transactionId }] },
     });
 
+    // If payment doesn't exist, try to create fallback only if we can determine userId from initial response
     if (!payment) {
-      this.logger.warn(`Fallback payment creation for callback order ${orderId}`);
+      this.logger.warn(`handleCallback: fallback payment creation for order ${orderId}`);
       const initRes = await this.prisma.paymentResponse.findFirst({ where: { orderId } });
       const userId = initRes?.userId ?? null;
       if (userId) {
@@ -135,17 +162,40 @@ export class PaymentService {
             status: remoteStatus === 'success' ? PaymentStatus.SUCCESS : PaymentStatus.FAILED,
           },
         });
+      } else {
+        // store paymentResponse and return — cannot credit without user
+        await this.prisma.paymentResponse.create({
+          data: {
+            userId: null,
+            orderId,
+            transactionId,
+            status: remoteStatus,
+            rrn: payload.rrn ?? null,
+            payload,
+            signature,
+          },
+        });
+        this.logger.warn(`handleCallback: no user found for order ${orderId}, stored paymentResponse only`);
+        return { status: 'ok' };
       }
     } else {
-      payment = await this.prisma.payment.update({
-        where: { id: payment.id },
-        data: {
-          status: remoteStatus === 'success' ? PaymentStatus.SUCCESS : PaymentStatus.FAILED,
-          transactionId: transactionId ?? payment.transactionId,
-        },
-      });
+      // update payment status idempotently: only upgrade or set when appropriate
+      const newStatus = remoteStatus === 'success' ? PaymentStatus.SUCCESS : PaymentStatus.FAILED;
+      // If already SUCCESS, don't downgrade to FAILED
+      if (payment.status === PaymentStatus.SUCCESS && newStatus === PaymentStatus.FAILED) {
+        this.logger.log(`handleCallback: received FAILED but payment ${payment.orderId} already SUCCESS — ignoring downgrade`);
+      } else {
+        payment = await this.prisma.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: newStatus,
+            transactionId: transactionId ?? payment.transactionId,
+          },
+        });
+      }
     }
 
+    // upsert paymentResponse
     let existingResponse = await this.prisma.paymentResponse.findFirst({
       where: { OR: [{ transactionId }, { orderId }] },
     });
@@ -175,23 +225,44 @@ export class PaymentService {
       });
     }
 
-    if (remoteStatus === 'success' && payment) {
-      await this.creditUserBalance(payment.userId, amount, transactionId);
+    // credit only on success and only if payment has userId
+    if (remoteStatus === 'success' && payment && payment.userId) {
+      await this.creditUserBalance(payment.userId, amount, transactionId, orderId);
     }
 
     return { status: 'ok' };
   }
 
-  private async creditUserBalance(userId: number, amount: number, transactionId: string | null) {
-    const existingTx = await this.prisma.balanceTransaction.findFirst({
-      where: {
-        note: { contains: transactionId ?? '' },
-        userId,
-      },
-    });
+  /**
+   * Credits user balance but deduplicates by transactionId (preferred) or orderId.
+   * If transactionId provided => search by it; else if orderId provided => search by it.
+   */
+  private async creditUserBalance(
+    userId: number,
+    amount: number,
+    transactionId: string | null,
+    orderId?: string | null,
+  ) {
+    // Deduplication: only search when identifier is present
+    let existingTx:any = null;
+    if (transactionId) {
+      existingTx = await this.prisma.balanceTransaction.findFirst({
+        where: {
+          userId,
+          note: { contains: transactionId },
+        },
+      });
+    } else if (orderId) {
+      existingTx = await this.prisma.balanceTransaction.findFirst({
+        where: {
+          userId,
+          note: { contains: orderId },
+        },
+      });
+    }
 
     if (existingTx) {
-      this.logger.log(`Balance already credited for transaction ${transactionId}`);
+      this.logger.log(`creditUserBalance: already credited for (${transactionId ?? orderId})`);
       return;
     }
 
@@ -199,12 +270,12 @@ export class PaymentService {
       const user = await tx.user.findUnique({ where: { id: userId } });
       if (!user) throw new Error('User not found');
 
-      const before = Number(user.balance);
-      const after = Number((before + amount).toFixed(2));
+      const before = Number(user.balance ?? 0);
+      const afterNum = Number((before + Number(amount)).toFixed(2));
 
       await tx.user.update({
         where: { id: userId },
-        data: { balance: after.toString() },
+        data: { balance: afterNum.toString() },
       });
 
       await tx.balanceTransaction.create({
@@ -214,19 +285,32 @@ export class PaymentService {
           amount,
           currency: 'AZN',
           type: 'ADMIN_TOPUP',
-          note: `Epoint transaction ${transactionId ?? 'unknown'}`,
+          note: `Epoint transaction ${transactionId ?? 'unknown'}${orderId ? ` / order ${orderId}` : ''}`,
           balanceBefore: before,
-          balanceAfter: after,
+          balanceAfter: afterNum,
           bankId: null,
           attemptId: null,
         },
       });
     });
 
-    this.logger.log(`Credited ${amount} AZN to user ${userId} (transaction: ${transactionId})`);
+    this.logger.log(`Credited ${amount} AZN to user ${userId} (transaction: ${transactionId ?? 'unknown'})`);
   }
 
-  async checkStatus(transactionOrOrder: { transaction?: string; order_id?: string }): Promise<any> {
+  /**
+   * checkStatus:
+   * - transactionOrOrder: { transaction?, order_id? }
+   * - after3ds: boolean flag set by frontend when user returned from 3DS page
+   *
+   * Behavior:
+   * - if remoteStatus === 'success' => process success (idempotent)
+   * - if remoteStatus === 'failed' and after3ds === true => mark FAILED (only if still PENDING)
+   * - otherwise => return { status: 'pending' } and DO NOT mark FAILED
+   */
+  async checkStatus(
+    transactionOrOrder: { transaction?: string; order_id?: string },
+    after3ds = false,
+  ): Promise<any> {
     if (!this.privateKey) throw new Error('Epoint private key missing in env');
 
     const payload: Record<string, any> = { public_key: this.publicKey };
@@ -240,23 +324,87 @@ export class PaymentService {
     form.append('data', data);
     form.append('signature', signature);
 
-    const resp$ = this.http.post(this.getStatusUrl, form.toString(), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    let axiosRes: any;
+    try {
+      const resp$ = this.http.post(this.getStatusUrl, form.toString(), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      axiosRes = await lastValueFrom(resp$);
+    } catch (err: any) {
+      this.logger.error(`checkStatus: Epoint getStatus failed: ${err?.message ?? err}`);
+      throw err;
+    }
+
+    const pollRes = axiosRes.data;
+    const remoteStatus = (pollRes?.status ?? '').toLowerCase();
+
+    // find payment
+    const payment = await this.prisma.payment.findFirst({
+      where: {
+        OR: [
+          transactionOrOrder.transaction ? { transactionId: transactionOrOrder.transaction } : undefined,
+          transactionOrOrder.order_id ? { orderId: transactionOrOrder.order_id } : undefined,
+        ].filter(Boolean) as any[],
+      },
     });
-    const axiosRes = await lastValueFrom(resp$);
-    return axiosRes.data;
+
+    // If remote says success -> process (idempotent)
+    if (remoteStatus === 'success') {
+      if (payment) {
+        if (payment.status !== PaymentStatus.SUCCESS) {
+          await this.processSuccessfulPaymentFromPoll(payment, pollRes);
+        } else {
+          this.logger.log(`checkStatus: payment ${payment.orderId} already SUCCESS`);
+        }
+      } else {
+        this.logger.warn(`checkStatus: payment not found for ${JSON.stringify(transactionOrOrder)}, but remote success`);
+      }
+      return { status: 'success' };
+    }
+
+    // If remote says failed and frontend signals after3ds -> mark failed (but don't downgrade SUCCESS)
+    if (remoteStatus === 'failed' && after3ds) {
+      if (payment) {
+        if (payment.status === PaymentStatus.PENDING) {
+          await this.processFailedPayment(payment);
+          return { status: 'failed' };
+        } else {
+          this.logger.log(`checkStatus: remote failed but payment ${payment.orderId} is ${payment.status} — skipping downgrade`);
+          return { status: payment.status.toLowerCase() };
+        }
+      } else {
+        // No payment in DB, but remote failed after 3ds — create paymentResponse and return failed
+        await this.prisma.paymentResponse.create({
+          data: {
+            userId: null,
+            orderId: transactionOrOrder.order_id ?? null,
+            transactionId: transactionOrOrder.transaction ?? null,
+            status: 'failed',
+            rrn: pollRes?.rrn ?? null,
+            payload: pollRes,
+            signature,
+          },
+        });
+        return { status: 'failed' };
+      }
+    }
+
+    // default: treat as pending — do not mark failed
+    this.logger.log(`checkStatus: remoteStatus=${remoteStatus} for ${JSON.stringify(transactionOrOrder)}; deferring final decision`);
+    return { status: 'pending' };
   }
 
+  // Called when poll determines success (fallback)
   async processSuccessfulPaymentFromPoll(payment: Payment, pollResponse: any) {
     if (payment.status !== PaymentStatus.PENDING) {
-      this.logger.log(`Payment ${payment.orderId} already processed (status: ${payment.status})`);
+      this.logger.log(`processSuccessfulPaymentFromPoll: Payment ${payment.orderId} already processed (status: ${payment.status})`);
       return;
     }
 
-    const transactionId = pollResponse.transaction ?? payment.transactionId;
-    const amount = pollResponse.amount ? Number(pollResponse.amount) : payment.amount.toNumber();
+    const transactionId = pollResponse.transaction ?? payment.transactionId ?? null;
+    const amount = pollResponse.amount ? Number(pollResponse.amount) : Number((payment as any).amount ?? 0);
 
-    await this.creditUserBalance(payment.userId, amount, transactionId);
+    await this.creditUserBalance(payment.userId, amount, transactionId, payment.orderId);
 
     await this.prisma.payment.update({
       where: { id: payment.id },
@@ -275,7 +423,9 @@ export class PaymentService {
         where: { id: payment.id },
         data: { status: PaymentStatus.FAILED },
       });
-      this.logger.log(`Fallback: Marked ${payment.orderId} as FAILED`);
+      this.logger.log(`processFailedPayment: Marked ${payment.orderId} as FAILED`);
+    } else {
+      this.logger.log(`processFailedPayment: payment ${payment.orderId} not PENDING (${payment.status}) — skipping`);
     }
   }
 }
