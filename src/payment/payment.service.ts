@@ -268,7 +268,7 @@ export class PaymentService {
                     adminId: null,
                     amount,
                     currency: 'AZN',
-                    type: 'ADMIN_TOPUP',
+                    type: 'USER_TOPUP',
                     note: `Epoint transaction ${transactionId ?? 'unknown'}${orderId ? ` / order ${orderId}` : ''}`,
                     balanceBefore: before,
                     balanceAfter: afterNum,
@@ -280,17 +280,7 @@ export class PaymentService {
 
         this.logger.log(`Credited ${amount} AZN to user ${userId} (transaction: ${transactionId ?? 'unknown'})`);
     }
-
-    /**
-     * checkStatus:
-     * - transactionOrOrder: { transaction?, order_id? }
-     * - after3ds: boolean flag set by frontend when user returned from 3DS page
-     *
-     * Behavior:
-     * - if remoteStatus === 'success' => process success (idempotent)
-     * - if remoteStatus === 'failed' and after3ds === true => mark FAILED (only if still PENDING)
-     * - otherwise => return { status: 'pending' } and DO NOT mark FAILED
-     */
+    
     async checkStatus(transactionOrOrder: { transaction?: string; order_id?: string }): Promise<any> {
         if (!this.privateKey) throw new Error('Epoint private key missing in env');
 
@@ -330,7 +320,6 @@ export class PaymentService {
             return { status: remoteStatus ?? 'failed' };
         }
 
-        // ✅ SUCCESS
         if (remoteStatus === 'success') {
             if (payment.status === PaymentStatus.PENDING) {
                 await this.processSuccessfulPaymentFromPoll(payment, pollRes);
@@ -338,7 +327,6 @@ export class PaymentService {
             return { status: 'success' };
         }
 
-        // ✅ FAILED (artıq pending saxlamırıq)
         if (remoteStatus === 'failed') {
             if (payment.status === PaymentStatus.PENDING) {
                 await this.processFailedPayment(payment);

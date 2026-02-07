@@ -35,6 +35,7 @@ enum AttemptStatus {
 
 enum BalanceTxType {
   EXAM_DEBIT
+  USER_TOPUP
   ADMIN_TOPUP
   MANUAL_ADJUSTMENT
 }
