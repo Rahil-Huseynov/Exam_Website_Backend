@@ -1,26 +1,33 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Get, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Logger } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { CallbackDto } from './dto/callback.dto';
+import { PrismaService } from '../prisma/prisma.service';
+import { PaymentStatus } from '@prisma/client';
 
 @Controller('payment')
 export class PaymentController {
-  constructor(private readonly svc: PaymentService) {}
+  private readonly logger = new Logger(PaymentController.name);
+
+  constructor(
+    private readonly svc: PaymentService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Post('create')
   async create(@Body() dto: CreatePaymentDto) {
-    const res = await this.svc.createPayment(dto);
-    return res;
+    return await this.svc.createPayment(dto);
   }
 
   @Post('callback')
   @HttpCode(HttpStatus.OK)
   async callback(@Body() dto: CallbackDto) {
     try {
-      const saved = await this.svc.handleCallback(dto.data, dto.signature);
+      await this.svc.handleCallback(dto.data, dto.signature);
       return { status: 'ok' };
     } catch (err) {
-      return { status: 'error', message: err.message || String(err) };
+      this.logger.error(`Callback error: ${err.message}`);
+      return { status: 'error', message: err.message };
     }
   }
 
@@ -30,14 +37,32 @@ export class PaymentController {
   }
 
   @Get('verify-redirect')
-  async verifyRedirect(@Query('orderId') orderId: string, @Query('transaction') transaction?: string, @Query('expect') expect?: string) {
-    if (!orderId) {
-      return { allowed: false };
-    }
-    const res = await this.svc.checkStatus({ order_id: orderId, transaction });
-    const status = res.status?.toLowerCase() ?? 'pending';
+  async verifyRedirect(
+    @Query('orderId') orderId: string,
+    @Query('transaction') transaction?: string,
+    @Query('expect') expect?: string,
+  ) {
+    if (!orderId) return { allowed: false };
+
+    const payment = await this.prisma.payment.findUnique({ where: { orderId } });
+    if (!payment) return { allowed: false };
+
+    const pollRes = await this.svc.checkStatus({ order_id: orderId, transaction });
+    const remoteStatus = pollRes.status?.toLowerCase();
     const expected = expect?.toLowerCase() ?? 'success';
-    const allowed = (expected === 'success' && status === 'success') || (expected === 'failed' && status !== 'success');
+
+    let allowed = false;
+
+    if (remoteStatus === 'success') {
+      await this.svc.processSuccessfulPaymentFromPoll(payment, pollRes);
+      allowed = expected === 'success';
+    } else if (remoteStatus && remoteStatus !== 'pending') {
+      await this.svc.processFailedPayment(payment);
+      allowed = expected === 'failed';
+    } else {
+      allowed = payment.status === PaymentStatus.SUCCESS && expected === 'success';
+    }
+
     return { allowed };
   }
 }

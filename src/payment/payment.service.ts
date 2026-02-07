@@ -4,7 +4,7 @@ import { lastValueFrom } from 'rxjs';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
-import { PaymentResponse, Payment } from '@prisma/client'; 
+import { PaymentResponse, Payment, PaymentStatus } from '@prisma/client';
 
 @Injectable()
 export class PaymentService {
@@ -44,13 +44,11 @@ export class PaymentService {
 
     const payment = await this.prisma.payment.create({
       data: {
-        user: {
-          connect: { id: dto.userId },
-        },
+        user: { connect: { id: dto.userId } },
         orderId: dto.order_id,
         amount: dto.amount,
         currency: 'AZN',
-        status: 'PENDING',
+        status: PaymentStatus.PENDING,
       },
     });
 
@@ -90,10 +88,10 @@ export class PaymentService {
         userId: dto.userId,
         orderId: dto.order_id,
         transactionId: resJson.transaction ?? null,
-        status: resJson.status ?? 'pending', 
+        status: resJson.status ?? 'pending',
         rrn: resJson.rrn ?? null,
         payload: resJson,
-        signature: signature,
+        signature,
       },
     });
 
@@ -111,87 +109,65 @@ export class PaymentService {
     const decoded = Buffer.from(dataBase64, 'base64').toString('utf-8');
     const payload = JSON.parse(decoded) as Record<string, any>;
 
-    const transactionId: string | null = payload.transaction ?? null;
-    const orderId: string | null = payload.order_id ?? null;
-    const status: string | null = payload.status?.toLowerCase() ?? null;
+    const transactionId = payload.transaction ?? null;
+    const orderId = payload.order_id ?? null;
+    const remoteStatus = payload.status?.toLowerCase() ?? null;
     const amount = payload.amount ? Number(payload.amount) : 0;
 
-    if (!orderId) {
-      throw new Error('No orderId in callback payload');
-    }
+    if (!orderId) throw new Error('No orderId in callback payload');
 
-    let payment: Payment | null = await this.prisma.payment.findFirst({
-      where: {
-        OR: [
-          { orderId: orderId ?? undefined },
-          { transactionId: transactionId ?? undefined },
-        ],
-      },
+    let payment = await this.prisma.payment.findFirst({
+      where: { OR: [{ orderId }, { transactionId }] },
     });
 
     if (!payment) {
-      this.logger.warn(`No Payment found for order ${orderId} / transaction ${transactionId}`);
-      const initResponse = await this.prisma.paymentResponse.findFirst({
-        where: { orderId },
-      });
-      const userId = initResponse?.userId ?? null;
-      if (userId !== null) {
+      this.logger.warn(`Fallback payment creation for callback order ${orderId}`);
+      const initRes = await this.prisma.paymentResponse.findFirst({ where: { orderId } });
+      const userId = initRes?.userId ?? null;
+      if (userId) {
         payment = await this.prisma.payment.create({
           data: {
-            user: {
-              connect: { id: userId },
-            },
-            orderId: orderId,
-            transactionId: transactionId ?? null,
-            amount: amount,
+            user: { connect: { id: userId } },
+            orderId,
+            transactionId,
+            amount,
             currency: 'AZN',
-            status: status === 'success' ? 'SUCCESS' : 'FAILED',
+            status: remoteStatus === 'success' ? PaymentStatus.SUCCESS : PaymentStatus.FAILED,
           },
         });
-      } else {
-        this.logger.warn(`No userId found for fallback payment creation for order ${orderId}`);
       }
     } else {
       payment = await this.prisma.payment.update({
         where: { id: payment.id },
         data: {
-          status: status === 'success' ? 'SUCCESS' : 'FAILED',
+          status: remoteStatus === 'success' ? PaymentStatus.SUCCESS : PaymentStatus.FAILED,
           transactionId: transactionId ?? payment.transactionId,
         },
       });
     }
 
-    let existingResponse: PaymentResponse | null = null;
-    if (transactionId) {
-      existingResponse = await this.prisma.paymentResponse.findFirst({
-        where: { transactionId },
-      });
-    }
-    if (!existingResponse && orderId) {
-      existingResponse = await this.prisma.paymentResponse.findFirst({
-        where: { orderId },
-      });
-    }
+    let existingResponse = await this.prisma.paymentResponse.findFirst({
+      where: { OR: [{ transactionId }, { orderId }] },
+    });
 
-    let pr: PaymentResponse;
     if (existingResponse) {
-      pr = await this.prisma.paymentResponse.update({
+      await this.prisma.paymentResponse.update({
         where: { id: existingResponse.id },
         data: {
           transactionId,
-          status,
+          status: remoteStatus,
           rrn: payload.rrn ?? null,
           payload,
           signature,
         },
       });
     } else {
-      pr = await this.prisma.paymentResponse.create({
+      await this.prisma.paymentResponse.create({
         data: {
           userId: payment?.userId ?? null,
           orderId,
           transactionId,
-          status,
+          status: remoteStatus,
           rrn: payload.rrn ?? null,
           payload,
           signature,
@@ -199,51 +175,55 @@ export class PaymentService {
       });
     }
 
-    if (status === 'success') {
-      const userId = payment?.userId ?? null;
-      if (userId) {
-        const existingTx = await this.prisma.balanceTransaction.findFirst({
-          where: {
-            note: { contains: transactionId ?? '' },
-            userId,
-          },
-        });
-
-        if (!existingTx) {
-          await this.prisma.$transaction(async (tx) => {
-            const user = await tx.user.findUnique({ where: { id: userId } });
-            if (!user) throw new Error('User not found to credit balance');
-
-            const before = Number(user.balance);
-            const after = Number((before + amount).toFixed(2));
-
-            await tx.user.update({
-              where: { id: userId },
-              data: { balance: after.toString() },
-            });
-
-            await tx.balanceTransaction.create({
-              data: {
-                userId,
-                adminId: null,
-                amount: amount,
-                currency: 'AZN',
-                type: 'ADMIN_TOPUP', 
-                note: `Epoint transaction ${transactionId ?? ''}`,
-                balanceBefore: before,
-                balanceAfter: after,
-                bankId: null,
-                attemptId: null,
-              },
-            });
-          });
-        }
-      } else {
-        this.logger.warn(`Success payment but userId unknown for order ${orderId} / transaction ${transactionId}`);
-      }
+    if (remoteStatus === 'success' && payment) {
+      await this.creditUserBalance(payment.userId, amount, transactionId);
     }
 
-    return pr;
+    return { status: 'ok' };
+  }
+
+  private async creditUserBalance(userId: number, amount: number, transactionId: string | null) {
+    const existingTx = await this.prisma.balanceTransaction.findFirst({
+      where: {
+        note: { contains: transactionId ?? '' },
+        userId,
+      },
+    });
+
+    if (existingTx) {
+      this.logger.log(`Balance already credited for transaction ${transactionId}`);
+      return;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user) throw new Error('User not found');
+
+      const before = Number(user.balance);
+      const after = Number((before + amount).toFixed(2));
+
+      await tx.user.update({
+        where: { id: userId },
+        data: { balance: after.toString() },
+      });
+
+      await tx.balanceTransaction.create({
+        data: {
+          userId,
+          adminId: null,
+          amount,
+          currency: 'AZN',
+          type: 'ADMIN_TOPUP',
+          note: `Epoint transaction ${transactionId ?? 'unknown'}`,
+          balanceBefore: before,
+          balanceAfter: after,
+          bankId: null,
+          attemptId: null,
+        },
+      });
+    });
+
+    this.logger.log(`Credited ${amount} AZN to user ${userId} (transaction: ${transactionId})`);
   }
 
   async checkStatus(transactionOrOrder: { transaction?: string; order_id?: string }): Promise<any> {
@@ -265,5 +245,37 @@ export class PaymentService {
     });
     const axiosRes = await lastValueFrom(resp$);
     return axiosRes.data;
+  }
+
+  async processSuccessfulPaymentFromPoll(payment: Payment, pollResponse: any) {
+    if (payment.status !== PaymentStatus.PENDING) {
+      this.logger.log(`Payment ${payment.orderId} already processed`);
+      return;
+    }
+
+    const transactionId = pollResponse.transaction ?? payment.transactionId;
+    const amount = pollResponse.amount ? Number(pollResponse.amount) : payment.amount.toNumber();
+
+    await this.creditUserBalance(payment.userId, amount, transactionId);
+
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: PaymentStatus.SUCCESS,
+        transactionId,
+      },
+    });
+
+    this.logger.log(`Poll fallback: Credited ${amount} AZN for order ${payment.orderId}`);
+  }
+
+  async processFailedPayment(payment: Payment) {
+    if (payment.status === PaymentStatus.PENDING) {
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: PaymentStatus.FAILED },
+      });
+      this.logger.log(`Poll fallback: Marked ${payment.orderId} as FAILED`);
+    }
   }
 }
