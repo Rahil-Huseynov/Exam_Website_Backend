@@ -421,6 +421,9 @@ model Payment {
 
   status        PaymentStatus @default(PENDING)
 
+  oneTimeToken   String?   
+  tokenConsumed  Boolean   @default(false)
+   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

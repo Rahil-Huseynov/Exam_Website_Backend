@@ -20,14 +20,12 @@ export class PaymentService {
     this.requestUrl = process.env.EPOINT_REQUEST_URL ?? '';
     this.getStatusUrl = process.env.EPOINT_GET_STATUS_URL ?? '';
 
-    if (!this.publicKey) this.logger.warn('EPOINT_PUBLIC_KEY not set');
     if (!this.privateKey) {
       throw new Error('EPOINT_PRIVATE_KEY is required in environment variables');
     }
   }
 
   private makeSignature(dataBase64: string): string {
-    if (!this.privateKey) throw new Error('EPOINT_PRIVATE_KEY is not set');
     const s = `${this.privateKey}${dataBase64}${this.privateKey}`;
     const shaBuf = crypto.createHash('sha1').update(s).digest();
     return shaBuf.toString('base64');
@@ -39,10 +37,11 @@ export class PaymentService {
   }
 
   async createPayment(dto: CreatePaymentDto): Promise<any> {
-    if (!this.privateKey) throw new Error('Epoint private key missing in env');
     if (!dto.userId) throw new Error('userId is required to create payment');
     if (!dto.order_id) throw new Error('order_id is required');
     if (!dto.amount || Number(dto.amount) <= 0) throw new Error('amount must be > 0');
+
+    const oneTimeToken = crypto.randomBytes(24).toString('hex');
 
     const payment = await this.prisma.payment.create({
       data: {
@@ -51,6 +50,8 @@ export class PaymentService {
         amount: dto.amount,
         currency: 'AZN',
         status: PaymentStatus.PENDING,
+        oneTimeToken,
+        tokenConsumed: false,
       },
     });
 
@@ -75,50 +76,65 @@ export class PaymentService {
     try {
       const resp$ = this.http.post(this.requestUrl, form.toString(), {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 20_000,
       });
       const axiosRes = await lastValueFrom(resp$);
       const resJson = axiosRes.data;
 
-      if (resJson.status === 'success' && resJson.transaction) {
-        await this.prisma.payment.update({
-          where: { orderId: dto.order_id },
-          data: { transactionId: resJson.transaction },
+      try {
+        await this.prisma.paymentResponse.create({
+          data: {
+            userId: dto.userId,
+            orderId: dto.order_id,
+            transactionId: resJson.transaction ?? null,
+            status: resJson.status ?? 'pending',
+            rrn: resJson.rrn ?? null,
+            payload: resJson,
+            signature,
+          },
         });
+      } catch (e) {
+        this.logger.warn('Failed to write paymentResponse: ' + String(e));
       }
 
-      await this.prisma.paymentResponse.create({
-        data: {
-          userId: dto.userId,
-          orderId: dto.order_id,
-          transactionId: resJson.transaction ?? null,
-          status: resJson.status ?? 'pending',
-          rrn: resJson.rrn ?? null,
-          payload: resJson,
-          signature,
-        },
-      });
+      if (resJson.status === 'success' && resJson.transaction) {
+        try {
+          await this.prisma.payment.update({
+            where: { id: payment.id },
+            data: { transactionId: resJson.transaction },
+          });
+        } catch (e) {
+          this.logger.warn('Failed to update payment transactionId: ' + String(e));
+        }
+      }
 
-      return resJson;
+      return {
+        epoint: resJson,
+        oneTimeToken,
+        orderId: dto.order_id,
+        redirect_url: resJson.data?.redirect_url ?? resJson.redirect_url ?? null,
+      };
     } catch (err: any) {
       this.logger.error(`createPayment: Epoint request failed for order ${dto.order_id}: ${err?.message ?? err}`);
-      await this.prisma.paymentResponse.create({
-        data: {
-          userId: dto.userId,
-          orderId: dto.order_id,
-          transactionId: null,
-          status: 'error',
-          rrn: null,
-          payload: { error: err?.message ?? String(err) },
-          signature,
-        },
-      });
+      try {
+        await this.prisma.paymentResponse.create({
+          data: {
+            userId: dto.userId,
+            orderId: dto.order_id,
+            transactionId: null,
+            status: 'error',
+            rrn: null,
+            payload: { error: err?.message ?? String(err) },
+            signature,
+          },
+        });
+      } catch (e) {
+        this.logger.warn('Failed to write failed paymentResponse: ' + String(e));
+      }
       throw err;
     }
   }
-
   async handleCallback(dataBase64: string, signature: string): Promise<any> {
-    if (!this.privateKey) throw new Error('Epoint private key missing in env');
-
     const expectedSignature = this.makeSignature(dataBase64);
     const expectedBuf = Buffer.from(expectedSignature);
     const providedBuf = Buffer.from(signature);
@@ -222,29 +238,6 @@ export class PaymentService {
     return { status: 'ok' };
   }
 
-  private async creditUserBalance(
-    userId: number,
-    amount: number,
-    transactionId: string | null,
-    orderId?: string | null,
-  ) {
-    const payment = await this.prisma.payment.findFirst({
-      where: {
-        userId,
-        OR: [
-          transactionId ? { transactionId } : undefined,
-          orderId ? { orderId } : undefined,
-        ].filter(Boolean) as any[],
-      },
-    });
-
-    if (!payment) {
-      throw new Error('Payment not found for creditUserBalance');
-    }
-
-    await this.processPaymentSuccessAtomic(payment.id, userId, amount, transactionId, orderId ?? payment.orderId);
-  }
-
   private async processPaymentSuccessAtomic(
     paymentId: string,
     userId: number,
@@ -277,6 +270,7 @@ export class PaymentService {
             },
           });
         } catch (e) {
+          this.logger.warn(String(e));
         }
         return;
       }
@@ -293,8 +287,7 @@ export class PaymentService {
       });
 
       const noteParts = [
-        orderId ? `order=${orderId}` : null,
-        transactionId ? `tx=${transactionId}` : null,
+        orderId ? `${orderId}` : null,
       ].filter(Boolean).join(' ');
 
       await tx.balanceTransaction.create({
@@ -325,8 +318,6 @@ export class PaymentService {
   }
 
   async checkStatus(transactionOrOrder: { transaction?: string; order_id?: string }): Promise<any> {
-    if (!this.privateKey) throw new Error('Epoint private key missing in env');
-
     const payload: Record<string, any> = { public_key: this.publicKey };
     if (transactionOrOrder.transaction) payload.transaction = transactionOrOrder.transaction;
     if (transactionOrOrder.order_id) payload.order_id = transactionOrOrder.order_id;
@@ -349,12 +340,8 @@ export class PaymentService {
     const payment = await this.prisma.payment.findFirst({
       where: {
         OR: [
-          transactionOrOrder.transaction
-            ? { transactionId: transactionOrOrder.transaction }
-            : undefined,
-          transactionOrOrder.order_id
-            ? { orderId: transactionOrOrder.order_id }
-            : undefined,
+          transactionOrOrder.transaction ? { transactionId: transactionOrOrder.transaction } : undefined,
+          transactionOrOrder.order_id ? { orderId: transactionOrOrder.order_id } : undefined,
         ].filter(Boolean) as any[],
       },
     });
@@ -380,7 +367,7 @@ export class PaymentService {
     return { status: 'pending' };
   }
 
-  async processSuccessfulPaymentFromPoll(payment: Payment, pollResponse: any) {
+  private async processSuccessfulPaymentFromPoll(payment: Payment, pollResponse: any) {
     if (payment.status !== PaymentStatus.PENDING) {
       this.logger.log(`processSuccessfulPaymentFromPoll: Payment ${payment.orderId} already processed (status: ${payment.status})`);
       return;
@@ -394,7 +381,7 @@ export class PaymentService {
     this.logger.log(`Fallback (poll/cron): Credited ${amount} AZN for order ${payment.orderId}`);
   }
 
-  async processFailedPayment(payment: Payment) {
+  private async processFailedPayment(payment: Payment) {
     if (payment.status === PaymentStatus.PENDING) {
       await this.prisma.payment.update({
         where: { id: payment.id },
