@@ -332,7 +332,7 @@ export class AuthService {
 `;
 
     await transporter.sendMail({
-       from: `"ImtahanVer.net" <${this.config.get('SMTP_USER')}>`,
+      from: `"ImtahanVer.net" <${this.config.get('SMTP_USER')}>`,
       to,
       subject: 'Doğrulama kodunuz',
       html,
@@ -1130,8 +1130,11 @@ export class AuthService {
   async getBalanceHistory(userId: number, page = 1, limit = 50) {
     const skip = (page - 1) * limit
 
-    const [total, items] = await this.prisma.$transaction([
-      this.prisma.balanceTransaction.count({ where: { userId } }),
+    const [totalCount, items, totalSpent] = await this.prisma.$transaction([
+      this.prisma.balanceTransaction.count({
+        where: { userId },
+      }),
+
       this.prisma.balanceTransaction.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
@@ -1143,8 +1146,25 @@ export class AuthService {
           admin: { select: { id: true, email: true, firstName: true, lastName: true, role: true } },
         },
       }),
+
+      this.prisma.balanceTransaction.aggregate({
+        where: {
+          userId,
+          type: "EXAM_DEBIT",
+        },
+        _sum: {
+          amount: true,
+        },
+      }),
     ])
 
-    return { page, limit, total, items }
+    return {
+      page,
+      limit,
+      totalTransactions: totalCount,
+      totalSpent: Number(totalSpent._sum.amount ?? 0).toFixed(2),
+      items,
+    }
   }
+
 }
