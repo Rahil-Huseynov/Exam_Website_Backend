@@ -1,4 +1,3 @@
-// payment-cron.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
@@ -19,13 +18,13 @@ export class PaymentCronService {
     const pendingPayments = await this.prisma.payment.findMany({
       where: {
         status: PaymentStatus.PENDING,
-        createdAt: { lt: new Date(Date.now() - 30 * 1000) }, 
+        createdAt: { lt: new Date(Date.now() - 20 * 1000) }, 
       },
     });
 
     if (pendingPayments.length === 0) return;
 
-    this.logger.log(`Checking ${pendingPayments.length} pending payments`);
+    this.logger.log(`${pendingPayments.length} pending ödəniş yoxlanılır`);
 
     for (const payment of pendingPayments) {
       try {
@@ -39,7 +38,7 @@ export class PaymentCronService {
           await this.paymentService.processFailedPayment(payment);
         }
       } catch (err) {
-        this.logger.error(`Check error for ${payment.orderId}: ${err.message}`);
+        this.logger.error(`Xəta: ${payment.orderId} — ${err.message}`);
       }
     }
   }
