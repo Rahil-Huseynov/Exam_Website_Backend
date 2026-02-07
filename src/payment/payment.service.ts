@@ -367,7 +367,7 @@ export class PaymentService {
     return { status: 'pending' };
   }
 
-  private async processSuccessfulPaymentFromPoll(payment: Payment, pollResponse: any) {
+  public async processSuccessfulPaymentFromPoll(payment: Payment, pollResponse: any) {
     if (payment.status !== PaymentStatus.PENDING) {
       this.logger.log(`processSuccessfulPaymentFromPoll: Payment ${payment.orderId} already processed (status: ${payment.status})`);
       return;
@@ -381,7 +381,7 @@ export class PaymentService {
     this.logger.log(`Fallback (poll/cron): Credited ${amount} AZN for order ${payment.orderId}`);
   }
 
-  private async processFailedPayment(payment: Payment) {
+  public async processFailedPayment(payment: Payment) {
     if (payment.status === PaymentStatus.PENDING) {
       await this.prisma.payment.update({
         where: { id: payment.id },
