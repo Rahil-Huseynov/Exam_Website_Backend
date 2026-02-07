@@ -269,7 +269,7 @@ export class PaymentService {
                     amount,
                     currency: 'AZN',
                     type: 'USER_TOPUP',
-                    note: `Epoint transaction ${transactionId ?? 'unknown'}${orderId ? ` / order ${orderId}` : ''}`,
+                    note: `Epoint transaction: ${orderId ? `${orderId}` : ''}`,
                     balanceBefore: before,
                     balanceAfter: afterNum,
                     bankId: null,
