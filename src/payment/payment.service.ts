@@ -142,9 +142,10 @@ export class PaymentService {
         });
 
         if (!payment) {
-            this.logger.warn(`handleCallback: fallback payment creation for order ${orderId}`);
+            this.logger.warn(`handleCallback: fallback - no payment row for order ${orderId}`);
             const initRes = await this.prisma.paymentResponse.findFirst({ where: { orderId } });
             const userId = initRes?.userId ?? null;
+
             if (userId) {
                 payment = await this.prisma.payment.create({
                     data: {
@@ -153,7 +154,7 @@ export class PaymentService {
                         transactionId,
                         amount,
                         currency: 'AZN',
-                        status: remoteStatus === 'success' ? PaymentStatus.SUCCESS : PaymentStatus.FAILED,
+                        status: PaymentStatus.PENDING,
                     },
                 });
             } else {
@@ -170,19 +171,6 @@ export class PaymentService {
                 });
                 this.logger.warn(`handleCallback: no user found for order ${orderId}, stored paymentResponse only`);
                 return { status: 'ok' };
-            }
-        } else {
-            const newStatus = remoteStatus === 'success' ? PaymentStatus.SUCCESS : PaymentStatus.FAILED;
-            if (payment.status === PaymentStatus.SUCCESS && newStatus === PaymentStatus.FAILED) {
-                this.logger.log(`handleCallback: received FAILED but payment ${payment.orderId} already SUCCESS — ignoring downgrade`);
-            } else {
-                payment = await this.prisma.payment.update({
-                    where: { id: payment.id },
-                    data: {
-                        status: newStatus,
-                        transactionId: transactionId ?? payment.transactionId,
-                    },
-                });
             }
         }
 
@@ -204,7 +192,7 @@ export class PaymentService {
         } else {
             await this.prisma.paymentResponse.create({
                 data: {
-                    userId: payment?.userId ?? null,
+                    userId: payment.userId ?? null,
                     orderId,
                     transactionId,
                     status: remoteStatus,
@@ -215,12 +203,42 @@ export class PaymentService {
             });
         }
 
-        if (remoteStatus === 'success' && payment && payment.userId) {
-            await this.creditUserBalance(payment.userId, amount, transactionId, orderId);
+        if (remoteStatus === 'success') {
+            const updated = await this.prisma.payment.updateMany({
+                where: { id: payment.id, status: PaymentStatus.PENDING },
+                data: {
+                    status: PaymentStatus.SUCCESS,
+                    transactionId: transactionId ?? payment.transactionId,
+                },
+            });
+
+            if ((updated as any).count && (updated as any).count > 0) {
+                try {
+                    await this.creditUserBalance(payment.userId, amount, transactionId, orderId);
+                    this.logger.log(`handleCallback: credited ${amount} AZN for order ${orderId} (tx: ${transactionId ?? 'unknown'})`);
+                } catch (err) {
+                    this.logger.error(`handleCallback: failed to credit user ${payment.userId} for order ${orderId}: ${String(err)}`);
+                    throw err;
+                }
+            } else {
+                this.logger.log(`handleCallback: payment ${orderId} already processed (status !== PENDING) — skipping credit`);
+            }
+        } else if (remoteStatus === 'failed') {
+            await this.prisma.payment.updateMany({
+                where: { id: payment.id, status: PaymentStatus.PENDING },
+                data: {
+                    status: PaymentStatus.FAILED,
+                    transactionId: transactionId ?? payment.transactionId,
+                },
+            });
+            this.logger.log(`handleCallback: marked ${orderId} as FAILED (if it was PENDING)`);
+        } else {
+            this.logger.log(`handleCallback: received status '${remoteStatus}' for order ${orderId} — stored response`);
         }
 
         return { status: 'ok' };
     }
+
 
     private async creditUserBalance(
         userId: number,
@@ -280,7 +298,7 @@ export class PaymentService {
 
         this.logger.log(`Credited ${amount} AZN to user ${userId} (transaction: ${transactionId ?? 'unknown'})`);
     }
-    
+
     async checkStatus(transactionOrOrder: { transaction?: string; order_id?: string }): Promise<any> {
         if (!this.privateKey) throw new Error('Epoint private key missing in env');
 

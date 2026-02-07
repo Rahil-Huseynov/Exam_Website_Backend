@@ -13,7 +13,7 @@ export class PaymentCronService {
     private paymentService: PaymentService,
   ) {}
 
-  @Cron('*/10 * * * * *') 
+  @Cron('*/5 * * * * *') 
   async handlePendingPayments() {
     const pendingPayments = await this.prisma.payment.findMany({
       where: {
