@@ -249,7 +249,7 @@ export class PaymentService {
 
   async processSuccessfulPaymentFromPoll(payment: Payment, pollResponse: any) {
     if (payment.status !== PaymentStatus.PENDING) {
-      this.logger.log(`Payment ${payment.orderId} already processed`);
+      this.logger.log(`Payment ${payment.orderId} already processed (status: ${payment.status})`);
       return;
     }
 
@@ -266,7 +266,7 @@ export class PaymentService {
       },
     });
 
-    this.logger.log(`Poll fallback: Credited ${amount} AZN for order ${payment.orderId}`);
+    this.logger.log(`Fallback (poll/cron): Credited ${amount} AZN for order ${payment.orderId}`);
   }
 
   async processFailedPayment(payment: Payment) {
@@ -275,7 +275,7 @@ export class PaymentService {
         where: { id: payment.id },
         data: { status: PaymentStatus.FAILED },
       });
-      this.logger.log(`Poll fallback: Marked ${payment.orderId} as FAILED`);
+      this.logger.log(`Fallback: Marked ${payment.orderId} as FAILED`);
     }
   }
 }
