@@ -35,7 +35,7 @@ async function bootstrap() {
   app.use((helmet as any)({ contentSecurityPolicy: false }));
   app.use(compression({ threshold: 0 }));
 
-  const allowedOrigins = ["http://localhost:3000", "http://217.64.24.9:3003"]
+  const allowedOrigins = ["http://localhost:3000", "http://217.64.24.9:3003", "https://imtahanver.net", "http://imtahanver.net", "https://www.imtahanver.net", "http://www.imtahanver.net"]
 
   app.use(cookieParser());
 

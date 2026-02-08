@@ -7,7 +7,9 @@ export class OriginCheckMiddleware implements NestMiddleware {
     'http://localhost:3000',
     'http://217.64.24.9:3003',
 'https://imtahanver.net',
-'http://imtahanver.net'
+'http://imtahanver.net',
+'https://www.imtahanver.net',
+'http://www.imtahanver.net'
   ];
 
   use(req: Request, res: Response, next: NextFunction) {

@@ -98,7 +98,7 @@ export class PdfConverterService {
     args: Record<string, string> = {},
   ): Promise<void> {
     const pythonPath =
-      '/home/user/Desktop/Exam/EXAM_Backend/venv/bin/python';
+      '/mnt/Disk_1TB/Exam_Website/Exam_Website_Backend/venv/bin/python';
 
     let command = `${pythonPath} scripts/${scriptName}`;
 

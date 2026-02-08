@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Robust docx -> pdf converter using LibreOffice (headless).
+Tries plain `soffice`/`libreoffice` first; on X11 DISPLAY errors will retry using `xvfb-run` if available.
+Converts the first .docx found in input_dir, places result into output_dir and renames it to output_name.
+Outputs helpful STDOUT/STDERR messages for debugging.
+"""
+
 import subprocess
 import os
 import shutil
@@ -8,127 +16,186 @@ import time
 import glob
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--input_dir', required=True)
-parser.add_argument('--output_dir', required=True)
-parser.add_argument('--output_name', required=True)
+parser.add_argument("--input_dir", required=True)
+parser.add_argument("--output_dir", required=True)
+parser.add_argument("--output_name", required=True)
 args = parser.parse_args()
+
+INPUT_DIR = os.path.abspath(args.input_dir)
+OUTPUT_DIR = os.path.abspath(args.output_dir)
+OUTPUT_NAME = args.output_name
 
 
 def find_office_cmd():
+    """Return path to soffice/libreoffice or None."""
     for cmd in ("soffice", "libreoffice"):
-        path = shutil.which(cmd)
-        if path:
-            return path
+        p = shutil.which(cmd)
+        if p:
+            return p
     return None
 
 
-def docx_to_pdf_libreoffice(docx_path, out_dir_abs):
-    """
-    Convert single docx -> pdf using libreoffice (headless).
-    out_dir_abs must be an absolute path.
-    Returns the absolute path to the produced PDF.
-    """
+def run_cmd(cmd_list, env=None, timeout=120):
+    """Run command and return CompletedProcess. Raise RuntimeError on timeout."""
+    try:
+        proc = subprocess.run(
+            cmd_list,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            text=True,
+            timeout=timeout,
+        )
+        return proc
+    except subprocess.TimeoutExpired as te:
+        raise RuntimeError(f"Komanda vaxtından artıq dayandı (timeout={timeout}s): {te}")
+
+
+def convert_with_libreoffice(docx_path, out_dir_abs):
+    """Try converting using libreoffice. Returns path to generated PDF on success."""
     office = find_office_cmd()
     if not office:
-        raise FileNotFoundError("LibreOffice tapılmadı. 'soffice' və ya 'libreoffice' yoxdur.")
+        raise FileNotFoundError("LibreOffice tapılmadı (soffice/libreoffice yoxdur).")
 
     docx_path = os.path.abspath(docx_path)
     out_dir_abs = os.path.abspath(out_dir_abs)
     os.makedirs(out_dir_abs, exist_ok=True)
 
-    # run libreoffice and capture output for debugging
-    cmd = [
+    # Prepare environment: sandbox HOME and unset DISPLAY for first attempt
+    env = os.environ.copy()
+    env["HOME"] = "/tmp"
+    env["DISPLAY"] = ""
+
+    base_cmd = [
         office,
         "--headless",
+        "--invisible",
         "--nologo",
         "--nofirststartwizard",
-        "--convert-to", "pdf:writer_pdf_Export",
-        "--outdir", out_dir_abs,
+        "--nodefault",
+        "--nolockcheck",
+        "--norestore",
+        "--convert-to",
+        "pdf:writer_pdf_Export",
+        "--outdir",
+        out_dir_abs,
         docx_path,
     ]
 
-    try:
-        proc = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    except subprocess.CalledProcessError as e:
-        # include stdout/stderr to help debugging
-        raise RuntimeError(f"LibreOffice çevrilmə zamanı səhv: returncode={e.returncode}\nSTDOUT:\n{e.stdout}\nSTDERR:\n{e.stderr}")
+    # 1) First attempt: direct libreoffice
+    proc = run_cmd(base_cmd, env=env)
 
-    # give libreoffice a short moment to flush files
+    stdout = proc.stdout or ""
+    stderr = proc.stderr or ""
+    rc = proc.returncode
+
+    # Detect X11/display related messages (case-insensitive)
+    err_lower = stderr.lower() + stdout.lower()
+    needs_xvfb = False
+    if rc != 0 and ("can't open display" in err_lower or "x11 error" in err_lower or "cannot open display" in err_lower):
+        needs_xvfb = True
+
+    # 2) If X11 problem and xvfb-run exists -> retry with xvfb-run
+    if needs_xvfb:
+        xvfb = shutil.which("xvfb-run")
+        if xvfb:
+            xvfb_cmd = [xvfb, "-a", "--server-args=-screen 0 1280x720x24"] + base_cmd
+            proc2 = run_cmd(xvfb_cmd, env=env)
+            stdout = proc2.stdout or ""
+            stderr = proc2.stderr or ""
+            rc = proc2.returncode
+        else:
+            # xvfb-run not available -> raise with captured output
+            raise RuntimeError(
+                "X11 (DISPLAY) xətası və `xvfb-run` sistemi üzərində mövcud deyil.\n"
+                f"LibreOffice STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
+            )
+
+    # Final check
+    if rc != 0:
+        raise RuntimeError(f"LibreOffice çevrilməsi uğursuz oldu (returncode={rc}).\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}")
+
+    # wait a moment for filesystem to flush
     time.sleep(0.8)
 
-    # find pdfs in output dir
+    # find produced PDF(s) in out_dir_abs
     pdf_files = glob.glob(os.path.join(out_dir_abs, "*.pdf"))
     if not pdf_files:
-        # include proc outputs if available
-        raise FileNotFoundError(f"PDF yaradılmadı: outdir={out_dir_abs}\nLibreOffice stdout:\n{proc.stdout}\nLibreOffice stderr:\n{proc.stderr}")
+        raise FileNotFoundError(
+            f"PDF yaradılmadı: outdir={out_dir_abs}\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
+        )
 
-    # return the most recently created pdf file
     latest_pdf = max(pdf_files, key=os.path.getctime)
     return latest_pdf
 
 
-def convert_one_file(input_dir, output_dir, output_name):
-    # normalize to absolute paths
-    input_dir_abs = os.path.abspath(input_dir)
-    output_dir_abs = os.path.abspath(output_dir)
-
-    if not os.path.isdir(input_dir_abs):
-        print(f"Giriş qovluğu tapılmadı ❌ -> {input_dir_abs}", file=sys.stderr)
+def main():
+    # Validate input directory
+    if not os.path.isdir(INPUT_DIR):
+        print(f"Giriş qovluğu tapılmadı: {INPUT_DIR}", file=sys.stderr)
         sys.exit(1)
 
-    os.makedirs(output_dir_abs, exist_ok=True)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # find .docx files (take the first one)
-    files = [f for f in os.listdir(input_dir_abs) if f.lower().endswith(".docx")]
-    if not files:
-        print(f"{input_dir_abs} içində .docx fayl yoxdur ❌", file=sys.stderr)
+    # pick the first docx file (same behavior as previous scripts)
+    docx_files = [f for f in os.listdir(INPUT_DIR) if f.lower().endswith(".docx")]
+    if not docx_files:
+        print(f"{INPUT_DIR} içində .docx fayl tapılmadı.", file=sys.stderr)
         sys.exit(1)
 
-    docx_file = files[0]
-    docx_path = os.path.join(input_dir_abs, docx_file)
+    docx_file = docx_files[0]
+    docx_path = os.path.join(INPUT_DIR, docx_file)
 
     print(f"Çevrilir ➜ {docx_path}", flush=True)
 
     try:
-        pdf_path = docx_to_pdf_libreoffice(docx_path, output_dir_abs)
+        produced_pdf = convert_with_libreoffice(docx_path, OUTPUT_DIR)
     except Exception as e:
         print(f"LibreOffice çevrilməsi uğursuz oldu: {e}", file=sys.stderr)
         sys.exit(2)
 
-    final_path = os.path.join(output_dir_abs, output_name)
+    final_path = os.path.join(OUTPUT_DIR, OUTPUT_NAME)
 
-    # If produced PDF is already the same path as final_path, we're done.
-    if os.path.abspath(pdf_path) == os.path.abspath(final_path):
-        print("Hazırdır ✅ (birbaşa uyğun fayl) ->", final_path, flush=True)
-        return
+    # If produced file already has the final name, done
+    try:
+        if os.path.abspath(produced_pdf) == os.path.abspath(final_path):
+            print(f"Hazırdır ✅ -> {final_path}", flush=True)
+            sys.exit(0)
+    except Exception:
+        pass
 
-    # remove existing final file if exists
+    # Remove existing final file if present
     if os.path.exists(final_path):
         try:
             os.remove(final_path)
         except Exception as e:
             print(f"Keçmiş çıxış faylını silərkən xəta: {e}", file=sys.stderr)
 
-    # ensure source exists and is readable
-    if not os.path.exists(pdf_path):
-        print(f"Mənbə PDF tapılmadı: {pdf_path}", file=sys.stderr)
+    # Ensure source exists
+    if not os.path.exists(produced_pdf):
+        print(f"Mənbə PDF tapılmadı: {produced_pdf}", file=sys.stderr)
         sys.exit(3)
 
+    # Try moving; if cross-filesystem problems occur, fallback to copy
     try:
-        # move the created pdf to final_path (this will copy between filesystems if needed)
-        shutil.move(pdf_path, final_path)
+        shutil.move(produced_pdf, final_path)
     except Exception as e:
-        print(f"Faylı köçürərkən xəta: {e}", file=sys.stderr)
-        # try a fallback: copy+unlink
+        print(f"shutil.move xətası: {e} — fallback olaraq copy2 istifadə edilir", file=sys.stderr)
         try:
-            shutil.copy2(pdf_path, final_path)
-            os.remove(pdf_path)
+            shutil.copy2(produced_pdf, final_path)
+            try:
+                os.remove(produced_pdf)
+            except Exception:
+                # ignore
+                pass
         except Exception as e2:
             print(f"Fallback da uğursuz oldu: {e2}", file=sys.stderr)
             sys.exit(4)
 
-    print("Hazırdır ✅ ->", final_path, flush=True)
+    print(f"Hazırdır ✅ -> {final_path}", flush=True)
+    sys.exit(0)
 
 
 if __name__ == "__main__":
-    convert_one_file(args.input_dir, args.output_dir, args.output_name)
+    main()
+
