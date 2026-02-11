@@ -609,6 +609,7 @@ Tələblər:
 5. Feedback ətraflı və izahlı olsun (təxminən 200–400 söz).
 6. Feedback sual və cavab hansı dildədirsə, o dildə olsun (AZ olduqda rəsmi Azərbaycan dili, EN rəsmi İngilis dilində, Rus olduqda rəsmi Rus dilində)!!!
 Sual və cavab hansı dildədirsə, Feedbackdə həmin dildə olacaq!!!
+Feedback cümlələrini mənalı və hikmətli qur!!!
 Ən əsası əgər sual və cavab Azərbaycan dilindədirsə, feedback üçün mətn yazdıqda mütləq həm leksik həm də qrammatik cəhətdən düzgün rəsmi Azərbaycan dilindən istifadə et və eyni zamanda digər dillərdə olduqda da həmin dildə də leksik və qrammatik cəhətdən düzgün yaz!!!
 7. Yalnız JSON formatında cavab ver, əlavə mətn yazma.
 
