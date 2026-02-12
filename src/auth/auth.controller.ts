@@ -97,7 +97,7 @@ export class AuthController {
     const token = (data as any)?.accessToken || (data as any)?.access_token
     return data
   }
-  
+
   @Public()
   @Post("logout")
   async logout(@Res({ passthrough: true }) res: Response) {
@@ -112,6 +112,12 @@ export class AuthController {
     return this.authService.getAllUsers(pageNumber, pageSize, search)
   }
 
+  @UseGuards(AuthGuard("jwt"), AdminGuard)
+  @Get("users/:id/full")
+  async getUserFull(@Param("id", ParseIntPipe) id: number) {
+    return this.authService.getUserFullById(id);
+  }
+  
   @UseGuards(AuthGuard("jwt"), AdminGuard)
   @Get("users/recent")
   async getRecentUsers() {

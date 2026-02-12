@@ -609,49 +609,134 @@ export class AuthService {
     };
   }
 
-  async getAllUsers(page = 1, limit = 10, search?: string) {
-    const skip = (page - 1) * limit;
+  async getAllUsers(page = 1, limit = 50, search?: string) {
+  const skip = (page - 1) * limit;
 
-    const where = search
-      ? {
+  const where = search
+    ? {
         OR: [
           { firstName: { contains: search, mode: "insensitive" } },
           { lastName: { contains: search, mode: "insensitive" } },
           { email: { contains: search, mode: "insensitive" } },
         ],
       }
-      : {};
+    : {};
 
-    const [users, totalCount] = await this.prisma.$transaction([
-      this.prisma.user.findMany({
-        where: where as any,
-        skip,
-        take: limit,
-        orderBy: {
-          createdAt: "desc",
-        },
+  const [users, totalCount] = await this.prisma.$transaction([
+    this.prisma.user.findMany({
+      where: where as any,
+      skip,
+      take: limit,
+      orderBy: {
+        createdAt: "desc",
+      },
+      select: {
+        id: true,
+        publicId: true,
+        email: true,
+        createdAt: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        balance: true,
+        attempts: { select: { id: true } },
+        payments: { select: { id: true } },
+      },
+    }),
+    this.prisma.user.count({ where: where as any }),
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+
+  const usersNormalized = users.map((u: any) => ({
+    ...u,
+    balance:
+      typeof u.balance === "object" && (u.balance as any).toFixed
+        ? (u.balance as any).toFixed(2)
+        : String(u.balance ?? "0.00"),
+    attempts: u.attempts ?? [],
+    payments: u.payments ?? [],
+  }));
+
+  return {
+    users: usersNormalized,
+    totalCount,
+    totalPages,
+    currentPage: page,
+  };
+}
+
+async getUserFullById(userId: number) {
+  const user = await this.prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      publicId: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      role: true,
+      isEmailVerified: true,
+      balance: true,
+      createdAt: true,
+      updatedAt: true,
+      attempts: {
+        orderBy: { startedAt: "desc" },
+        take: 100,
         select: {
           id: true,
-          publicId: true,
-          email: true,
-          createdAt: true,
-          firstName: true,
-          lastName: true,
-          role: true,
+          bankId: true,
+          status: true,
+          startedAt: true,
+          finishedAt: true,
+          score: true,
+          total: true,
+          expiresAt: true,
         },
-      }),
-      this.prisma.user.count({ where: where as any }),
-    ]);
+      },
+      payments: {
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select: {
+          id: true,
+          orderId: true,
+          transactionId: true,
+          amount: true,
+          currency: true,
+          status: true,
+          createdAt: true,
+        },
+      },
+      balanceTransactions: {
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select: {
+          id: true,
+          amount: true,
+          type: true,
+          note: true,
+          balanceBefore: true,
+          balanceAfter: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
 
-    const totalPages = Math.ceil(totalCount / limit);
+  if (!user) throw new BadRequestException("User tapılmadı");
 
-    return {
-      users,
-      totalCount,
-      totalPages,
-      currentPage: page,
-    };
-  }
+  const balanceNormalized =
+    typeof user.balance === "object" && (user.balance as any).toFixed
+      ? (user.balance as any).toFixed(2)
+      : String(user.balance ?? "0.00");
+
+  return {
+    ...user,
+    balance: balanceNormalized,
+  };
+}
+
+
 
   async getAllAdmins(page = 1, limit = 10, search = "") {
     const skip = (page - 1) * limit;
