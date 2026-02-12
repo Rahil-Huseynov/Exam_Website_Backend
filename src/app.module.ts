@@ -27,6 +27,7 @@ import { AiModule } from './ai-checker/ai.module';
 import { PdfConverterModule } from './pdf-converter/pdfconverter.module';
 import { FeatureModule } from './feature/feature.module';
 import { PaymentModule } from './payment/payment.module';
+import { AdminStatsModule } from './admin-stats/admin-stats.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { PaymentModule } from './payment/payment.module';
     NewsModule,
     PaymentModule,
     PdfConverterModule,
+    AdminStatsModule,
     FeatureModule,
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
