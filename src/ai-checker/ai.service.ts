@@ -591,54 +591,86 @@ export class AiService {
       return;
     }
 
-    let prompt = `
-Sən universitet səviyyəli təcrübəli müəllimsən.
-Sual ilə tələbənin cavabını diqqətlə müqayisə et və rəsmi Azərbaycan dilində geniş və izahlı feedback yaz.
+    const MAIN_PROMPT = `
+Siz universitet səviyyəli təcrübəli müəllimsiniz. Aşağıdakılara ciddi əməl edərək yalnız JSON obyektində cavab verin.
 
-Tələblər:
-1. Feedback qrammatik cəhətdən düzgün, tam cümlələrlə və rəsmi üslubda olmalıdır.
-2. Feedbackdə mütləq aşağıdakılar yer alsın:
-   - tələbənin güclü tərəfləri,
-   - zəif tərəfləri,
-   - konkret səhvlər,
-   - bu səhvlərin səbəbləri,
-   - bu səhvlərin necə düzəldilməli olduğu izah edilsin,
-   - Əgər riyazi misal və ya məsələlər varsa hesablamaların düzgünlüyü yoxlanılsın və səhvlər izah edilsin.
-3. Sual ilə cavab arasındakı uyğunluğu əsaslandıraraq qiymətləndir.
-4. Qiymətləndirmə 0–10 arası tam ədəd (integer) olmalıdır.
-5. Feedback ətraflı və izahlı olsun (təxminən 200–400 söz).
-6. Feedback sual və cavab hansı dildədirsə, o dildə olsun (AZ olduqda rəsmi Azərbaycan dili, EN rəsmi İngilis dilində, Rus olduqda rəsmi Rus dilində)!!!
-Sual və cavab hansı dildədirsə, Feedbackdə həmin dildə olacaq!!!
-Feedback cümlələrini mənalı və hikmətli qur!!!
-Ən əsası əgər sual və cavab Azərbaycan dilindədirsə, feedback üçün mətn yazdıqda mütləq həm leksik həm də qrammatik cəhətdən düzgün rəsmi Azərbaycan dilindən istifadə et və eyni zamanda digər dillərdə olduqda da həmin dildə də leksik və qrammatik cəhətdən düzgün yaz!!!
-7. Yalnız JSON formatında cavab ver, əlavə mətn yazma.
+Girişlər:
+- Sual/Prompt: >>>${questionText}<<<
+${question.answerKey ? `- Answer Key: >>>${question.answerKey}<<<\n` : ''}
+- Tələbənin cavabı: >>>${studentAnswer}<<<
 
-Sual/Prompt: ${questionText}
-`;
-
-    if (question.answerKey) {
-      prompt += `\nAnswer Key: ${question.answerKey}`;
-    }
-
-    prompt += `
-Tələbənin cavabı: ${studentAnswer}
-
+Tələblər (qısa və dəqiq):
+1) Çıxış yalnız və məcburi JSON formatında olmalıdır:
 {
   "score": number,
   "feedback": string
+}
+2) \`score\` 0–10 aralığında tam ədəd olmalıdır. Uyğunluq əsaslı qiymətləndirin.
+3) \`feedback\` rəsmi, qrammatik cəhətdən düzgün olmalı, tam cümlələrdən ibarət olmalıdır.
+4) \`feedback\` içində mütləq bu başlıqlar əhatə olunmalıdır (nümunə kimi cümlələrə daxil edin):
+   - Güclü tərəflər
+   - Zəif tərəflər
+   - Konkret səhvlər və onların səbəbləri
+   - Bu səhvlərin necə düzəldilməsi (konkret addımlar)
+   - Əgər riyazi hesablamalar varsa, hesablamaların düzgünlüyü yoxlanılsın və lazım gələrsə nümunə düzəliş verilsin
+5) Sual və cavabın dili ilə eyni dildə yazın. (AZ → rəsmi Azərbaycan dili; EN → formal English; RU → официальный русский.)
+6) Heç bir əlavə mətn, başlıq, şərh və ya JSON-dan kənar simvol yazmayın. Əgər tam tələblərə cavab mümkün deyilsə, yenə də etibarlı JSON verin (məsələn: \`"score": 0\` və qısa \`feedback\`).
+7) \`feedback\` mümkün qədər konkret və praktik olsun — tələbəyə nəyi necə düzəltməli olduğunu dəqiq göstərsin.
+
+Nümunə düzgün çıxış:
+{
+  "score": 7,
+  "feedback": "Tələbənin cavabında ... (200–400 söz)."
+}
+`;
+
+    const RETRY_PROMPT = `
+Təcrübəli universitet müəllimisiniz. ƏVVƏLÖN və DƏQİQ TƏLƏBLƏR:
+- Çıxış MÜTLƏQ və YALNIZ JSON obyektindən ibarət olmalıdır:
+{
+  "score": number,
+  "feedback": string
+}
+
+Giriş:
+Sual/Prompt: >>>${questionText}<<<
+${question.answerKey ? `Answer Key: >>>${question.answerKey}<<<\n` : ''}
+Tələbənin cavabı: >>>${studentAnswer}<<<
+
+Qaydalar (qısa):
+1) Score: integer 0–10.
+2) Feedback: rəsmi, qrammatik cəhətdən düzgün, sualın dilində yazılmış 200–400 söz; əgər vaxt/yer məhdudiyyətinə görə mümkün deyilsə, ən az 40 söz.
+3) Feedback daxilində aydın şəkildə:
+   - güclü tərəflər,
+   - zəif tərəflər,
+   - konkret səhvlər və onların səbəbləri,
+   - düzəliş üzrə konkret məsləhətlər (addım-addım),
+   - riyazi səhv olduqda hesablamanı yoxlayın və düz formada göstərərək izah edin.
+4) JSON-dan kənar heç nə yazmayın. Əgər tam məlumat vermək mümkün deyilsə, qısa və etibarlı JSON qaytarın (məsələn score=0 ilə).
+
+Çıxış nümunəsi:
+{
+  "score": 5,
+  "feedback": "..."
 }
 `;
 
     const maxAttempts = 5;
     let attemptCount = 0;
     let finalJson: any = null;
+    let prompt = MAIN_PROMPT;
 
     while (attemptCount < maxAttempts) {
       attemptCount++;
       this.logger.warn(`AI attempt ${attemptCount}/${maxAttempts} for checkedId=${aiCheckedAnswerId}`);
 
       try {
-        const text = await this.runLlama(prompt);
+        let text = await this.runLlama(prompt);
+
+        if (typeof text === 'string') {
+          text = text.replace(/^[\u0000-\u001F]+/, '');
+        }
+
         this.logger.warn('RAW AI RESPONSE:\n' + (text.length > 1000 ? text.slice(0, 1000) + '... (truncated)' : text));
 
         const json = this.extractJson(text);
@@ -651,50 +683,7 @@ Tələbənin cavabı: ${studentAnswer}
         this.logger.error('runLlama error', err as any);
       }
 
-      prompt = `
-Sən təcrübəli universitet müəllimisisən.
-Sualı və tələbənin cavabını diqqətlə oxu və yalnız JSON formatında cavab ver. Heç bir əlavə mətn və izah yazma.
-
-Tələblər:
-1) Feedback rəsmi Azərbaycan dilində, qrammatik cəhətdən düzgün və tam cümlələrlə olmalıdır.
-2) Üslub universitet səviyyəli, obyektiv və elmi olmalıdır.
-3) Feedbackdə mütləq aşağıdakılar əhatə olunsun:
-   - tələbənin güclü tərəfləri,
-   - zəif tərəfləri,
-   - konkret səhvləri,
-   - bu səhvlərin səbəbləri,
-   - bu səhvlərin necə düzəldilməli olduğu izah edilsin,
-   - Əgər riyazi misal və ya məsələlər varsa hesablamaların düzgünlüyü yoxlanılsın və səhvlər izah edilsin.
-4) Sual ilə cavab arasındakı uyğunluğu əsaslandıraraq qiymətləndir.
-5) Qiymətləndirmə 0–10 arası tam ədəd (integer) olmalıdır.
-6) Feedback ətraflı və izahlı olsun (təxminən 200–400 söz).
-Ən əsası əgər sual və cavab Azərbaycan dilindədirsə, feedback üçün mətn yazdıqda mütləq həm leksik həm də qrammatik cəhətdən düzgün rəsmi Azərbaycan dilindən istifadə et və eyni zamanda digər dillərdə olduqda da həmin dildə də leksik və qrammatik cəhətdən düzgün yaz!!!
-Feedback sual və cavab hansı dildədirsə, o dildə olsun (AZ olduqda rəsmi Azərbaycan dili, EN rəsmi İngilis dilində, Rus olduqda rəsmi Rus dilində)!!!
-Sual və cavab hansı dildədirsə, Feedbackdə həmin dildə olacaq!!!
-Feedback cümlələrini mənalı və hikmətli qur!!!
-7) Çıxış mütləq və yalnız bu JSON obyektindən ibarət olmalıdır:
-{
-  "score": number,
-  "feedback": string
-}
-8) JSON-dan kənar heç bir simvol, mətn, izah və ya işarə yazma. Əgər düzgün nəticə mümkün deyilsə, yenə də etibarlı JSON qaytar (məsələn: score=0 və qısa feedback).
-
-Sual/Prompt: ${questionText}
-`;
-      if (question.answerKey) {
-        prompt += `\nAnswer Key: ${question.answerKey}`;
-      }
-
-      prompt += `
-Tələbənin cavabı: ${studentAnswer}
-
-Yalnız bu formatda cavab ver:
-{
-  "score": number,
-  "feedback": string
-}
-`;
-
+      prompt = RETRY_PROMPT;
       await new Promise((r) => setTimeout(r, 400));
     }
 
