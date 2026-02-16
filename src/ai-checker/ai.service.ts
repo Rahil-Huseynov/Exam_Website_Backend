@@ -303,7 +303,7 @@ export class AiService {
         );
 
         let child: ChildProcess | null = null;
-        const ollamaArgs = ['run', 'deepseek-r1:8b'];
+        const ollamaArgs = ['run', 'qwen2.5:7b-instruct-q5_K_M'];
         if (this.prlimitAvailable) {
           const asArg = `--as=${this.memoryLimitBytes}`;
           this.logger.log(`Spawning prlimit to enforce memory limit: ${this.memoryLimitBytes} bytes`);
@@ -661,7 +661,7 @@ Verdiyn feedback-i tələbə həqiqətəndə başa düşməlidir!!!
 }
 `;
 
-    const maxAttempts = 5;
+    const maxAttempts = 10;
     let attemptCount = 0;
     let finalJson: any = null;
     let prompt = MAIN_PROMPT;
@@ -797,4 +797,4 @@ Verdiyn feedback-i tələbə həqiqətəndə başa düşməlidir!!!
     this.enqueueAiCheck(id);
     return { message: 'Recheck triggered', id };
   }
-}
+} 
