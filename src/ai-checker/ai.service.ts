@@ -620,6 +620,16 @@ Verdiyn feedback-i özün nəzərdən keçir dəfələrlə sual və cavab hansı
 Verdiyn feedback həqiqətəndə tələbəyə köməklik görsətməlidir!!! 
 Verdiyn feedback-i tələbə həqiqətəndə başa düşməlidir!!!
 Sual və cavab hansı dildədirsə, feedback mütləq həmin dildə olmalıdır!!!
+Qeyd:
+- Feedback-də HTML tag istifadə etməyin.
+- Feedback-i HTML encoder formatında verin: 
+  - '<' → '&lt;'
+  - '>' → '&gt;'
+  - '&' → '&amp;'
+  - '"' → '&quot;'
+  - ''' → '&#39;'
+- Yəni bütün xüsusi simvollar HTML-ə uyğun escaped olsun, amma mətn oxunaqlı qalmalıdır.
+- LaTeX formatından istifadə etməyin.
 Nümunə düzgün çıxış:
 {
   "score": 7,
@@ -654,7 +664,16 @@ Verdiyn feedback-i özün nəzərdən keçir dəfələrlə sual və cavab hansı
 Verdiyn feedback həqiqətəndə tələbəyə köməklik görsətməlidir!!! 
 Verdiyn feedback-i tələbə həqiqətəndə başa düşməlidir!!!
 Sual və cavab hansı dildədirsə, feedback mütləq həmin dildə olmalıdır!!!
-
+Qeyd:
+- Feedback-də HTML tag istifadə etməyin.
+- Feedback-i HTML encoder formatında verin: 
+  - '<' → '&lt;'
+  - '>' → '&gt;'
+  - '&' → '&amp;'
+  - '"' → '&quot;'
+  - ''' → '&#39;'
+- Yəni bütün xüsusi simvollar HTML-ə uyğun escaped olsun, amma mətn oxunaqlı qalmalıdır.
+- LaTeX formatından istifadə etməyin.
 Çıxış nümunəsi:
 {
   "score": 5,
