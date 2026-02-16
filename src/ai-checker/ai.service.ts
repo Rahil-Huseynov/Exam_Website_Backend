@@ -303,7 +303,7 @@ export class AiService {
         );
 
         let child: ChildProcess | null = null;
-        const ollamaArgs = ['run', 'qwen2.5:7b-instruct-q5_K_M'];
+        const ollamaArgs = ['run', 'deepseek-r1:8b-q5'];
         if (this.prlimitAvailable) {
           const asArg = `--as=${this.memoryLimitBytes}`;
           this.logger.log(`Spawning prlimit to enforce memory limit: ${this.memoryLimitBytes} bytes`);
