@@ -303,7 +303,7 @@ export class AiService {
         );
 
         let child: ChildProcess | null = null;
-        const ollamaArgs = ['run', 'llama3.1:8b-instruct-q4_K_M'];
+        const ollamaArgs = ['run', 'qwen2.5:7b-instruct-q5_K_M'];
         if (this.prlimitAvailable) {
           const asArg = `--as=${this.memoryLimitBytes}`;
           this.logger.log(`Spawning prlimit to enforce memory limit: ${this.memoryLimitBytes} bytes`);
@@ -616,9 +616,9 @@ Tələblər (qısa və dəqiq):
 5) Sual və cavabın dili ilə eyni dildə yazın. (AZ → rəsmi Azərbaycan dili; EN → formal English; RU → официальный русский.)
 6) Heç bir əlavə mətn, başlıq, şərh və ya JSON-dan kənar simvol yazmayın. Əgər tam tələblərə cavab mümkün deyilsə, yenə də etibarlı JSON verin (məsələn: \`"score": 0\` və qısa \`feedback\`).
 7) \`feedback\` mümkün qədər konkret və praktik olsun — tələbəyə nəyi necə düzəltməli olduğunu dəqiq göstərsin.
-Verdiyin feedback-i özün nəzərdən keçir dəfələrlə sual və cavab hansı dildədirsə, feedback həmin dildə olmalıdır!!!! 
-Verdiyin feedback həqiqətəndə tələbəyə köməklik görsətməlidir!!! 
-Verdiyin feedback-i tələbə həqiqətəndə başa düşməlidir!!!
+Verdiyn feedback-i özün nəzərdən keçir dəfələrlə sual və cavab hansı dildədirsə, feedback həmin dildə olmalıdır!!!! 
+Verdiyn feedback həqiqətəndə tələbəyə köməklik görsətməlidir!!! 
+Verdiyn feedback-i tələbə həqiqətəndə başa düşməlidir!!!
 
 Nümunə düzgün çıxış:
 {
@@ -650,9 +650,9 @@ Qaydalar (qısa):
    - düzəliş üzrə konkret məsləhətlər (addım-addım),
    - riyazi səhv olduqda hesablamanı yoxlayın və düz formada göstərərək izah edin.
 4) JSON-dan kənar heç nə yazmayın. Əgər tam məlumat vermək mümkün deyilsə, qısa və etibarlı JSON qaytarın (məsələn score=0 ilə).
-Verdiyin feedback-i özün nəzərdən keçir dəfələrlə sual və cavab hansı dildədirsə, feedback həmin dildə olmalıdır!!!! 
-Verdiyin feedback həqiqətəndə tələbəyə köməklik görsətməlidir!!! 
-Verdiyin feedback-i tələbə həqiqətəndə başa düşməlidir!!!
+Verdiyn feedback-i özün nəzərdən keçir dəfələrlə sual və cavab hansı dildədirsə, feedback həmin dildə olmalıdır!!!! 
+Verdiyn feedback həqiqətəndə tələbəyə köməklik görsətməlidir!!! 
+Verdiyn feedback-i tələbə həqiqətəndə başa düşməlidir!!!
 
 Çıxış nümunəsi:
 {
