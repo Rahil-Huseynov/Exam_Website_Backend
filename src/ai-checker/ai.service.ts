@@ -303,7 +303,7 @@ export class AiService {
         );
 
         let child: ChildProcess | null = null;
-        const ollamaArgs = ['run', 'exam-grader'];
+        const ollamaArgs = ['run', 'qwen3:8b'];
         if (this.prlimitAvailable) {
           const asArg = `--as=${this.memoryLimitBytes}`;
           this.logger.log(`Spawning prlimit to enforce memory limit: ${this.memoryLimitBytes} bytes`);
@@ -619,7 +619,7 @@ Tələblər (qısa və dəqiq):
 Verdiyn feedback-i özün nəzərdən keçir dəfələrlə sual və cavab hansı dildədirsə, feedback həmin dildə olmalıdır!!!! 
 Verdiyn feedback həqiqətəndə tələbəyə köməklik görsətməlidir!!! 
 Verdiyn feedback-i tələbə həqiqətəndə başa düşməlidir!!!
-
+Sual və cavab hansı dildədirsə, feedback mütləq həmin dildə olmalıdır!!!
 Nümunə düzgün çıxış:
 {
   "score": 7,
@@ -653,6 +653,7 @@ Qaydalar (qısa):
 Verdiyn feedback-i özün nəzərdən keçir dəfələrlə sual və cavab hansı dildədirsə, feedback həmin dildə olmalıdır!!!! 
 Verdiyn feedback həqiqətəndə tələbəyə köməklik görsətməlidir!!! 
 Verdiyn feedback-i tələbə həqiqətəndə başa düşməlidir!!!
+Sual və cavab hansı dildədirsə, feedback mütləq həmin dildə olmalıdır!!!
 
 Çıxış nümunəsi:
 {
