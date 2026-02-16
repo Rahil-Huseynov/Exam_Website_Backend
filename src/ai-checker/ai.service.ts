@@ -145,7 +145,7 @@ export class AiService {
         for (const [pid, cp] of this.childProcesses.entries()) {
           try {
             if (!cp.killed) {
-              const ok = cp.kill('SIGTERM'); 
+              const ok = cp.kill('SIGTERM');
               this.logger.log(`Sent SIGTERM to pid=${pid} (kill returned ${ok})`);
             } else {
               this.logger.log(`Process pid=${pid} already marked killed`);
@@ -207,7 +207,7 @@ export class AiService {
     const remove = () => {
       try {
         if (typeof pid === 'number') this.childProcesses.delete(pid);
-      } catch {}
+      } catch { }
     };
 
     child.on('exit', (code, sig) => {
@@ -260,14 +260,14 @@ export class AiService {
             const s = d.toString();
             const sample = s.length > 300 ? s.slice(0, 300) + '...' : s;
             this.logger.log(`[ollama serve stdout] ${sample}`);
-          } catch {}
+          } catch { }
         });
         serve.stderr?.on('data', (d) => {
           try {
             const s = d.toString();
             const sample = s.length > 300 ? s.slice(0, 300) + '...' : s;
             this.logger.error(`[ollama serve stderr] ${sample}`);
-          } catch {}
+          } catch { }
         });
       } catch (err) {
         this.logger.error('Failed to spawn ollama serve: ' + (err as any)?.message);
@@ -303,7 +303,7 @@ export class AiService {
         );
 
         let child: ChildProcess | null = null;
-        const ollamaArgs = ['run', 'qwen3:8b'];
+        const ollamaArgs = ['run', 'exam-grader'];
         if (this.prlimitAvailable) {
           const asArg = `--as=${this.memoryLimitBytes}`;
           this.logger.log(`Spawning prlimit to enforce memory limit: ${this.memoryLimitBytes} bytes`);
