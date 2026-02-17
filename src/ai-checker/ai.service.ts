@@ -630,6 +630,7 @@ Qeyd:
   - ''' → '&#39;'
 - Yəni bütün xüsusi simvollar HTML-ə uyğun escaped olsun, amma mətn oxunaqlı qalmalıdır.
 - LaTeX formatından istifadə etməyin.
+**Sual və cavab hansı dildədirsə, feedback mütləq həmin dildə olmalıdır!!!**
 Nümunə düzgün çıxış:
 {
   "score": 7,
@@ -674,6 +675,7 @@ Qeyd:
   - ''' → '&#39;'
 - Yəni bütün xüsusi simvollar HTML-ə uyğun escaped olsun, amma mətn oxunaqlı qalmalıdır.
 - LaTeX formatından istifadə etməyin.
+**Sual və cavab hansı dildədirsə, feedback mütləq həmin dildə olmalıdır!!!**
 Çıxış nümunəsi:
 {
   "score": 5,

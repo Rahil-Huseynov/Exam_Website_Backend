@@ -36,7 +36,7 @@ export class PaymentCronService implements OnModuleInit {
     }
   }
 
-  @Cron('0 * * * * *') 
+  @Cron('0 * * * * *')
   async checkPendingExistence() {
     try {
       this.logger.debug('Checker cron start: pending sayını alıram...');
@@ -114,9 +114,9 @@ export class PaymentCronService implements OnModuleInit {
     this.logger.debug('runPendingPayments start');
 
     const twentySecondsAgo = new Date(Date.now() - 20 * 1000);
-    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000);
 
-    this.logger.debug(`runPendingPayments: twentySecondsAgo=${twentySecondsAgo.toISOString()}, threeDaysAgo=${threeDaysAgo.toISOString()}`);
+    this.logger.debug(`runPendingPayments: twentySecondsAgo=${twentySecondsAgo.toISOString()}, fiveHoursAgo=${fiveHoursAgo.toISOString()}`);
 
     let pendingPayments;
     try {
@@ -125,7 +125,7 @@ export class PaymentCronService implements OnModuleInit {
           status: PaymentStatus.PENDING,
           OR: [
             { createdAt: { lt: twentySecondsAgo } },
-            { updatedAt: { lt: threeDaysAgo } },
+            { updatedAt: { lt: fiveHoursAgo } },
           ],
         },
       });
@@ -144,7 +144,7 @@ export class PaymentCronService implements OnModuleInit {
     for (const payment of pendingPayments) {
       this.logger.log(`Processing payment: ${this.fmtPayment(payment)}`);
       try {
-        if (payment.updatedAt < threeDaysAgo) {
+        if (payment.updatedAt < fiveHoursAgo) {
           this.logger.log(`Payment ${payment.orderId} üçün updatedAt 3 gündən köhnədir -> avtomatik FAILED etməyə çalışıram.`);
           this.logger.debug(`Before updateMany: ${this.fmtPayment(payment)}`);
 
@@ -189,7 +189,7 @@ export class PaymentCronService implements OnModuleInit {
         } catch (pollErr) {
           this.logger.error(`checkStatus çağırışında xəta for ${payment.orderId}: ${pollErr?.message ?? pollErr}`);
           this.logger.debug(pollErr?.stack ?? '');
-          continue; 
+          continue;
         }
 
         const pollStatus = (pollRes?.status ?? '').toString().toLowerCase?.() ?? '';
