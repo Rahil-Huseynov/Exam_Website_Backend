@@ -89,6 +89,7 @@ export class AttemptsService {
       if (!bank) throw new BadRequestException("Bank not found");
       const user = await tx.user.findUnique({ where: { id: userId } });
       if (!user) throw new BadRequestException("User not found");
+
       const inProgress = await tx.attempt.findFirst({
         where: { userId, bankId, status: "IN_PROGRESS" },
         orderBy: { startedAt: "desc" },
@@ -103,27 +104,49 @@ export class AttemptsService {
         });
         await tx.attempt.delete({ where: { id: inProgress.id } });
       }
+
       await tx.examToken.deleteMany({
         where: { bankId, userId, usedAt: null },
       });
+
       const price = asDec(bank.price);
       const bal = asDec(user.balance);
       if (bal.lessThan(price)) throw new BadRequestException("Insufficient balance");
+
       const newBal = round2(bal.minus(price));
       const token = this.genToken();
       const expiresAt = new Date(now.getTime() + ttlMinutes * 60 * 1000);
-      const tokenRow = await tx.examToken.create({
-        data: { token, bankId, userId, expiresAt },
+
+      const attempt = await tx.attempt.create({
+        data: {
+          userId,
+          bankId,
+          status: "IN_PROGRESS",
+          startedAt: now,
+        },
       });
+
+      const tokenRow = await tx.examToken.create({
+        data: {
+          token,
+          bankId,
+          userId,
+          expiresAt,
+          usedAt: now,
+          attemptId: attempt.id,
+        },
+      });
+
       await tx.user.update({
         where: { id: userId },
         data: { balance: newBal },
       });
+
       await tx.balanceTransaction.create({
         data: {
           userId,
           bankId,
-          attemptId: null,
+          attemptId: attempt.id,          
           type: "EXAM_DEBIT",
           amount: round2(price.mul(-1)),
           balanceBefore: round2(bal),
@@ -131,7 +154,13 @@ export class AttemptsService {
           note: `Exam token created: ${bank.title} (${bank.year}) • non-refundable`,
         },
       });
-      return { token: tokenRow.token, expiresAt };
+
+      return {
+        token: tokenRow.token,
+        expiresAt,
+        attemptId: attempt.id,            
+        remainingBalance: newBal.toString(),
+      };
     });
   }
 

@@ -35,11 +35,19 @@ export class AttemptsController {
   @Post("banks/:bankId/exam-token")
   async createExamToken(@Param("bankId") bankId: string, @Body() dto: CreateAttemptDto) {
     if (dto.userId == null || Number.isNaN(Number(dto.userId))) {
-      throw new BadRequestException("userId is required")
+      throw new BadRequestException("userId is required");
     }
-    const { token, expiresAt } = await this.attempts.createOneTimeExamToken(bankId, Number(dto.userId), 10)
-    return { ok: true, token, expiresAt, url: `/exam-token/${token}` }
+    const result = await this.attempts.createOneTimeExamToken(bankId, Number(dto.userId), 10);
+    return {
+      ok: true,
+      token: result.token,
+      expiresAt: result.expiresAt,
+      attemptId: result.attemptId,
+      remainingBalance: result.remainingBalance,
+      url: `/exam-token/${result.token}`,
+    };
   }
+
   @Post("banks/:bankId/attempts")
   async createAttempt(@Param("bankId") bankId: string, @Body() dto: CreateAttemptWithTokenDto) {
     if (dto.userId == null || Number.isNaN(Number(dto.userId))) {
