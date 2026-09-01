@@ -360,6 +360,7 @@ async createAttemptWithToken(bankId: string, userId: number, token: string) {
     return {
       questions: questionsMapped,
       expiresAt: attempt.expiresAt,
+      serverNow: new Date().toISOString(),
     };
   }
 
@@ -614,6 +615,7 @@ async createAttemptWithToken(bankId: string, userId: number, token: string) {
         unanswered,
       },
       exam: attempt.bank,
+      serverNow: new Date().toISOString(),
     };
   }
 
