@@ -28,9 +28,12 @@ export class EmailsService {
   private brand() {
     return {
       siteName: "ImtahanVer.net",
-      siteUrl: this.config.get<string>("APP_URL") || "https://imtahanver.net",
-      logoUrl: this.config.get<string>("BRAND_LOGO_URL") || "https://api.imtahanver.net/uploads/Logo.png",
-      supportEmail: this.config.get<string>("CONTACT_TO_EMAIL") || "info@imtahanver.net",
+      siteUrl: this.config.get<string>("FRONTEND_URL") || "https://imtahanver.net",
+      logoUrl:
+        this.config.get<string>("BRAND_LOGO_URL") ||
+        "https://api.imtahanver.net/uploads/Logo.png",
+      supportEmail:
+        this.config.get<string>("CONTACT_TO_EMAIL") || "info@imtahanver.net",
     }
   }
 
@@ -67,10 +70,142 @@ export class EmailsService {
     }
   }
 
+  async sendNewsNotification(params: {
+    to: string
+    name: string
+    title: string
+    content: string
+    imageUrl: string | null
+    newsId: string
+  }) {
+    const { to, name, title, content, imageUrl, newsId } = params
+    const transporter = this.createTransporter()
+    const b = this.brand()
+    const from = `"${b.siteName}" <${this.config.get<string>("SMTP_USER")}>`
+
+    const appUrl =
+      this.config.get<string>("BACKEND_URL") || "https://api.imtahanver.net";
+
+    const fullImageUrl =
+      imageUrl && !imageUrl.startsWith("http")
+        ? `${appUrl}${imageUrl}`
+        : imageUrl;
+    const html = this.renderNewsEmail({
+      name,
+      title,
+      content,
+      imageUrl: fullImageUrl,
+      newsId,
+    })
+
+    try {
+      await transporter.sendMail({
+        from,
+        to,
+        subject: `Yeni xəbər: ${title}`,
+        html,
+      })
+    } catch (e: any) {
+      console.error(`News email failed for ${to}:`, e?.message)
+      throw e
+    }
+  }
+
+  private renderNewsEmail(params: {
+    name: string
+    title: string
+    content: string
+    imageUrl: string | null
+    newsId: string
+  }) {
+    const b = this.brand()
+    const safeName = this.escapeHtml(params.name)
+    const safeTitle = this.escapeHtml(params.title)
+    const safeContent = this.escapeHtml(params.content).replace(/\n/g, "<br/>")
+
+    return `
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:#f5f5f5;">
+  <table role="presentation" style="width:100%;border-collapse:collapse;background:#f5f5f5;">
+    <tr>
+      <td align="center" style="padding:40px 20px;">
+        <table role="presentation" style="max-width:640px;width:100%;border-collapse:collapse;background:#ffffff;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.08);overflow:hidden;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="padding:28px 28px 22px;background:linear-gradient(135deg,#667eea 0%,#764ba2 50%,#22c55e 100%);">
+              <table role="presentation" style="width:100%;border-collapse:collapse;">
+                <tr>
+                  <td style="vertical-align:middle;">
+                    <a href="${b.siteUrl}" target="_blank" style="text-decoration:none;">
+                      <img src="${b.logoUrl}" alt="${b.siteName}" style="height:40px;max-width:180px;display:block;border:0;" />
+                    </a>
+                  </td>
+                  <td align="right" style="vertical-align:middle;">
+                    <span style="display:inline-block;background:rgba(255,255,255,.18);color:#fff;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:600;">
+                      Yeni Xəbər
+                    </span>
+                  </td>
+                </tr>
+              </table>
+              <h1 style="margin:18px 0 0;color:#fff;font-size:22px;line-height:1.3;font-weight:800;">
+                ${safeTitle}
+              </h1>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:26px 28px;">
+              <p style="margin:0 0 16px;color:#111827;font-size:15px;line-height:1.7;">
+                Salam <b>${safeName}</b>,
+              </p>
+
+              ${params.imageUrl
+        ? `
+                <img 
+                  src="${this.escapeHtml(params.imageUrl)}" 
+                  alt="${safeTitle}" 
+                  style="width:100%;max-width:584px;border-radius:12px;margin:0 0 20px;display:block;"
+                />
+              `
+        : ""
+      }
+
+              <div style="color:#374151;font-size:15px;line-height:1.85;">
+                ${safeContent}
+              </div>
+
+              <div style="margin-top:28px;text-align:center;">
+                <a href="${b.siteUrl}/news/" 
+                   style="display:inline-block;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;padding:14px 28px;border-radius:999px;font-weight:700;font-size:14px;">
+                  Xəbərə bax →
+                </a>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:18px 28px;background:#0b1220;">
+              <p style="margin:0;color:rgba(255,255,255,.7);font-size:12px;line-height:1.6;text-align:center;">
+                © ${new Date().getFullYear()} ${b.siteName} • Bu avtomatik göndərilən bildirişdir
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+`
+  }
+
   private renderAdminContactEmail(dto: ContactDto) {
     const b = this.brand()
     const safeMessage = this.escapeHtml(dto.message).replace(/\n/g, "<br/>")
-    const subjectLine = dto.subject?.trim() ? this.escapeHtml(dto.subject.trim()) : "Contact form"
+    const subjectLine = dto.subject?.trim()
+      ? this.escapeHtml(dto.subject.trim())
+      : "Contact form"
 
     return `
 <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:#f5f5f5;">
@@ -231,7 +366,7 @@ export class EmailsService {
 `
   }
 
-  private escapeHtml(input: string) {
+  private escapeHtml(input: string): string {
     return String(input)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")

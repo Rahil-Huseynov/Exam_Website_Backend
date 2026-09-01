@@ -1,8 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common"
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common"
 import { PrismaService } from "../prisma/prisma.service"
 import { CreateNewsDto } from "./dto/create-news.dto"
 import { UpdateNewsDto } from "./dto/update-news.dto"
 import { NewsQueryDto } from "./dto/news-query.dto"
+import { EmailsService } from "src/emails/emails.service"
 
 type Lang = "az" | "en" | "ru"
 
@@ -14,7 +20,12 @@ function pickLang<T>(lang: Lang, az: T, en?: T | null, ru?: T | null) {
 
 @Injectable()
 export class NewsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(NewsService.name)
+
+  constructor(
+    private prisma: PrismaService,
+    private mailService: EmailsService,
+  ) {}
 
   async listPublished(q: NewsQueryDto) {
     const page = q.page ?? 1
@@ -31,7 +42,14 @@ export class NewsService {
         skip,
         take: limit,
         include: {
-          admin: { select: { id: true, firstName: true, lastName: true, email: true } },
+          admin: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
         },
       }),
       this.prisma.news.count({ where }),
@@ -52,7 +70,12 @@ export class NewsService {
 
     return {
       items: mapped,
-      meta: { page, limit, total, pages: Math.ceil(total / limit) },
+      meta: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
     }
   }
 
@@ -70,7 +93,14 @@ export class NewsService {
         skip,
         take: limit,
         include: {
-          admin: { select: { id: true, firstName: true, lastName: true, email: true } },
+          admin: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
         },
       }),
       this.prisma.news.count({ where }),
@@ -78,7 +108,12 @@ export class NewsService {
 
     return {
       items,
-      meta: { page, limit, total, pages: Math.ceil(total / limit) },
+      meta: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
     }
   }
 
@@ -86,9 +121,17 @@ export class NewsService {
     const item = await this.prisma.news.findUnique({
       where: { id },
       include: {
-        admin: { select: { id: true, firstName: true, lastName: true, email: true } },
+        admin: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
       },
     })
+
     if (!item) throw new NotFoundException("News not found")
 
     if (lang) {
@@ -113,23 +156,29 @@ export class NewsService {
     const isPublished = !!dto.isPublished
     const publishedAt = isPublished ? new Date() : null
 
-    return this.prisma.news.create({
+    const news = await this.prisma.news.create({
       data: {
         titleAz: dto.titleAz,
         titleEn: dto.titleEn ?? null,
         titleRu: dto.titleRu ?? null,
-
         contentAz: dto.contentAz,
         contentEn: dto.contentEn ?? null,
         contentRu: dto.contentRu ?? null,
-
         imageUrl: dto.imageUrl ?? null,
-
         isPublished,
         publishedAt,
         adminId: adminId ?? null,
       },
     })
+
+    // Yalnız published olduqda email göndər
+    if (isPublished) {
+      this.sendNewsToAllUsers(news).catch((err) => {
+        this.logger.error("News email göndərilərkən xəta:", err)
+      })
+    }
+
+    return news
   }
 
   async update(id: string, dto: UpdateNewsDto) {
@@ -145,23 +194,29 @@ export class NewsService {
       if (!dto.isPublished) publishedAt = null
     }
 
-    return this.prisma.news.update({
+    const updated = await this.prisma.news.update({
       where: { id },
       data: {
         titleAz: dto.titleAz,
         titleEn: dto.titleEn === undefined ? undefined : dto.titleEn,
         titleRu: dto.titleRu === undefined ? undefined : dto.titleRu,
-
         contentAz: dto.contentAz,
         contentEn: dto.contentEn === undefined ? undefined : dto.contentEn,
         contentRu: dto.contentRu === undefined ? undefined : dto.contentRu,
-
         imageUrl: dto.imageUrl === undefined ? undefined : dto.imageUrl,
-
         isPublished,
         publishedAt,
       },
     })
+
+    // Draft-dan published-ə keçəndə email göndər
+    if (!existing.isPublished && isPublished) {
+      this.sendNewsToAllUsers(updated).catch((err) => {
+        this.logger.error("News email göndərilərkən xəta:", err)
+      })
+    }
+
+    return updated
   }
 
   async remove(id: string) {
@@ -175,11 +230,75 @@ export class NewsService {
   async publishNow(id: string) {
     const existing = await this.prisma.news.findUnique({ where: { id } })
     if (!existing) throw new NotFoundException("News not found")
-    if (existing.isPublished) throw new BadRequestException("Already published")
+    if (existing.isPublished) {
+      throw new BadRequestException("Already published")
+    }
 
-    return this.prisma.news.update({
+    const updated = await this.prisma.news.update({
       where: { id },
-      data: { isPublished: true, publishedAt: new Date() },
+      data: {
+        isPublished: true,
+        publishedAt: new Date(),
+      },
     })
+
+    this.sendNewsToAllUsers(updated).catch((err) => {
+      this.logger.error("Publish email xətası:", err)
+    })
+
+    return updated
+  }
+
+  /**
+   * Yeni xəbəri bütün istifadəçilərə email ilə göndərir (şəkil daxil).
+   * Background-da işləyir, create/update-i yavaşlatmır.
+   */
+  private async sendNewsToAllUsers(news: {
+    id: string
+    titleAz: string
+    titleEn: string | null
+    titleRu: string | null
+    contentAz: string
+    contentEn: string | null
+    contentRu: string | null
+    imageUrl: string | null
+  }) {
+    const users = await this.prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+      },
+    })
+
+    if (users.length === 0) return
+
+    const title = news.titleAz
+    const content = news.contentAz
+    const imageUrl = news.imageUrl
+
+    // SMTP rate-limit üçün batch
+    const batchSize = 20
+    for (let i = 0; i < users.length; i += batchSize) {
+      const batch = users.slice(i, i + batchSize)
+
+      await Promise.allSettled(
+        batch.map((user) =>
+          this.mailService.sendNewsNotification({
+            to: user.email,
+            name:
+              [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+              "İstifadəçi",
+            title,
+            content,
+            imageUrl,
+            newsId: news.id,
+          }),
+        ),
+      )
+    }
+
+    this.logger.log(`News #${news.id} → ${users.length} istifadəçiyə göndərildi`)
   }
 }
