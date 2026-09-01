@@ -61,12 +61,15 @@ export class AttemptsController {
     }
   }
   @Get("attempts/:attemptId/questions")
-  async attemptQuestions(@Param("attemptId") attemptId: string, @Query("userId") userId?: string) {
-    const uid = Number(userId)
-    if (!userId || Number.isNaN(uid)) throw new BadRequestException("userId is required")
-    const questions = await this.attempts.getAttemptQuestions(attemptId, uid)
-    return { questions }
+  async attemptQuestions(
+    @Param("attemptId") attemptId: string,
+    @Query("userId") userId?: string,
+  ) {
+    const uid = Number(userId);
+    if (!userId || Number.isNaN(uid)) throw new BadRequestException("userId is required");
+    return this.attempts.getAttemptQuestions(attemptId, uid);
   }
+  
   @Post("banks/:bankId/exam-token/revoke")
   async revokeExamToken(@Param("bankId") bankId: string, @Body() dto: RevokeTokenDto) {
     if (dto.userId == null || Number.isNaN(Number(dto.userId))) {
