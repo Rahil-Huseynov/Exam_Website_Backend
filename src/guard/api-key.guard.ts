@@ -19,6 +19,7 @@ export class ApiKeyGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     if (request.method === 'OPTIONS') return true;
+
     const apiKey = request.headers['x-api-key'] as string | undefined;
     const validKey = this.configService.get<string>('API_KEY');
 
@@ -26,6 +27,7 @@ export class ApiKeyGuard implements CanActivate {
       throw new UnauthorizedException('Server API_KEY is not configured');
     }
 
+    // Əgər frontend/SSR tərəfdən doğru API key göndərilibsə icazə veririk
     if (!apiKey || apiKey !== validKey) {
       throw new UnauthorizedException('Invalid API key');
     }
