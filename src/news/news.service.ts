@@ -25,7 +25,7 @@ export class NewsService {
   constructor(
     private prisma: PrismaService,
     private mailService: EmailsService,
-  ) {}
+  ) { }
 
   async listPublished(q: NewsQueryDto) {
     const page = q.page ?? 1
@@ -117,9 +117,9 @@ export class NewsService {
     }
   }
 
-  async getById(id: string, lang?: Lang) {
-    const item = await this.prisma.news.findUnique({
-      where: { id },
+  async getById(id: string, lang: Lang = "az") {
+    const item = await this.prisma.news.findFirst({
+      where: { id, isPublished: true },
       include: {
         admin: {
           select: {
@@ -134,24 +134,19 @@ export class NewsService {
 
     if (!item) throw new NotFoundException("News not found")
 
-    if (lang) {
-      return {
-        id: item.id,
-        title: pickLang(lang, item.titleAz, item.titleEn, item.titleRu),
-        content: pickLang(lang, item.contentAz, item.contentEn, item.contentRu),
-        imageUrl: item.imageUrl,
-        isPublished: item.isPublished,
-        publishedAt: item.publishedAt,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-        admin: item.admin,
-        lang,
-      }
+    return {
+      id: item.id,
+      title: pickLang(lang, item.titleAz, item.titleEn, item.titleRu),
+      content: pickLang(lang, item.contentAz, item.contentEn, item.contentRu),
+      imageUrl: item.imageUrl,
+      isPublished: item.isPublished,
+      publishedAt: item.publishedAt,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      admin: item.admin,
+      lang,
     }
-
-    return item
   }
-
   async create(adminId: number | null, dto: CreateNewsDto) {
     const isPublished = !!dto.isPublished
     const publishedAt = isPublished ? new Date() : null
