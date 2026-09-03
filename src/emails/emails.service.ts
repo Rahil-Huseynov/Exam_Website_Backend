@@ -121,8 +121,13 @@ export class EmailsService {
     const b = this.brand()
     const safeName = this.escapeHtml(params.name)
     const safeTitle = this.escapeHtml(params.title)
-    const safeContent = this.escapeHtml(params.content).replace(/\n/g, "<br/>")
+    const maxLength = 160
+    const truncatedContent =
+      params.content.length > maxLength
+        ? params.content.slice(0, maxLength).trim() + "..."
+        : params.content
 
+    const safeContent = this.escapeHtml(truncatedContent).replace(/\n/g, "<br/>")
     return `
 <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:#f5f5f5;">
   <table role="presentation" style="width:100%;border-collapse:collapse;background:#f5f5f5;">
@@ -176,7 +181,7 @@ export class EmailsService {
               </div>
 
               <div style="margin-top:28px;text-align:center;">
-                <a href="${b.siteUrl}/news/" 
+                <a href="${b.siteUrl}/news/${params.newsId}" target="_blank"
                    style="display:inline-block;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-decoration:none;padding:14px 28px;border-radius:999px;font-weight:700;font-size:14px;">
                   Xəbərə bax →
                 </a>
