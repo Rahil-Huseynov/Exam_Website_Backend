@@ -28,6 +28,7 @@ import { PdfConverterModule } from './pdf-converter/pdfconverter.module';
 import { FeatureModule } from './feature/feature.module';
 import { PaymentModule } from './payment/payment.module';
 import { AdminStatsModule } from './admin-stats/admin-stats.module';
+import { BanksModule } from './bank/bank.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { AdminStatsModule } from './admin-stats/admin-stats.module';
     PaymentModule,
     PdfConverterModule,
     AdminStatsModule,
+    BanksModule,
     FeatureModule,
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
